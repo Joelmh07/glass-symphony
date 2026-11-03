@@ -87,7 +87,7 @@ const L = FI ? {
   fever: 'SINFONIA!', feverSub: 'Pisteet ×2', slow: 'HIDASTUS', prism: 'PRISMA!', life: '+1 ♥',
   maxCombo: 'Paras kombo', shattered: 'Rikottu', rank: 'Arvo', next: 'Seuraava',
   share: 'Jaa tulos', copied: 'Kopioitu!', paused: 'TAUKO', resume: 'Napauta jatkaaksesi',
-  obsWarn: 'MUSTA LASI = −1 ♥', lastLife: 'VIIMEINEN ELÄMÄ!', top: 'HUIPPU',
+  obsWarn: 'MUSTA LASI = −1 ♥', lastLife: 'VIIMEINEN ELÄMÄ!', top: 'HUIPPU', milestone: n => n + ' pistettä!',
   ranks: ['Aloittelija', 'Lasinpuhaltaja', 'Kristallisti', 'Virtuoosi', 'Maestro', 'Legenda'],
   shareText: n => 'Sain ' + n + ' pistettä Glass Symphonyssa! Pystytkö parempaan?'
 } : {
@@ -98,7 +98,7 @@ const L = FI ? {
   fever: 'SYMPHONY!', feverSub: 'Points ×2', slow: 'SLOW-MO', prism: 'PRISM!', life: '+1 ♥',
   maxCombo: 'Best combo', shattered: 'Shattered', rank: 'Rank', next: 'Next',
   share: 'Share score', copied: 'Copied!', paused: 'PAUSED', resume: 'Tap to continue',
-  obsWarn: 'BLACK GLASS = −1 ♥', lastLife: 'LAST LIFE!', top: 'TOP',
+  obsWarn: 'BLACK GLASS = −1 ♥', lastLife: 'LAST LIFE!', top: 'TOP', milestone: n => n + ' points!',
   ranks: ['Novice', 'Glassblower', 'Crystalist', 'Virtuoso', 'Maestro', 'Legend'],
   shareText: n => 'I scored ' + n + ' in Glass Symphony! Can you beat it?'
 };
@@ -304,7 +304,7 @@ let elapsed = 0, level = 1, spawnT = 0, feverT = 0, nextFever = 25, slowT = 0;
 let hitStop = 0, trauma = 0, redFlash = 0, goldFlash = 0, stateT = 0, scorePop = 0;
 let newBest = false, bestShown = false, levelHue = 195, bgHue = 235, lastSpawnX = -999, strokeId = 0;
 let runBest = 0, startPane = null, obsHintShown = !!save.seenObs, lastLifeShown = false;
-let banner = null, prevBest = 0;
+let banner = null, prevBest = 0, nextLifeAt = 5000;
 
 /* ---------- effect pools ---------- */
 const shards = [], sparks = [], texts = [], rings = [], flashes = [], cracks = [], trail = [], dust = [];
@@ -387,7 +387,7 @@ function createGlass(type, x, y, vy) {
   const o = {
     type, x, y, vx: rand(-0.025, 0.025) * S, vy: vy || 0, rot: rand(0, TAU), vr: rand(-1.3, 1.3),
     r, pts: shape(type, r), hue, hp: type === TEMPERED ? 2 : 1,
-    swayA: (level >= 3 && type !== START && Math.random() < 0.3) ? rand(0.4, 0.9) * R : 0,
+    swayA: (level >= 3 && type !== START && Math.random() < 0.25) ? rand(0.3, 0.7) * R : 0,
     swayF: rand(1.4, 2.6), ph: rand(0, TAU), t: 0, crk: null, dead: false, lastStroke: -1
   };
   styleGlass(o);
@@ -397,7 +397,8 @@ function createGlass(type, x, y, vy) {
 /* =========================================================
    DIFFICULTY & SPAWNING
    ========================================================= */
-const levelFor = t => 1 + Math.floor(t / 20);
+// levels get longer as you go, so the pace keeps rising slowly instead of spiking
+function levelFor(t) { let lv = 1, d = 20; while (t >= d) { t -= d; lv++; d = Math.min(36, d + 2); } return lv; }
 // curated "stained glass" palette; each level shifts which three hues dominate
 const HUES = [190, 210, 250, 280, 315, 345, 160, 175];
 const levelHueFor = lv => HUES[((lv - 1) * 2) % HUES.length];
@@ -405,17 +406,18 @@ function glassHue() {
   const i = ((level - 1) * 2 + randi(0, 2)) % HUES.length;
   return (HUES[i] + rand(-10, 10) + 360) % 360;
 }
-const fallSpeed = () => H * Math.min(0.15 + 0.022 * (level - 1), 0.46);
-const spawnGap = () => Math.max(0.3, 1.05 * Math.pow(0.9, level - 1)) * (feverT > 0 ? 0.6 : 1);
+// difficulty plateaus around level 12: always hard, never impossible
+const fallSpeed = () => H * Math.min(0.15 + 0.015 * (level - 1), 0.31);
+const spawnGap = () => Math.max(0.46, 1.05 * Math.pow(0.93, level - 1)) * (feverT > 0 ? 0.7 : 1);
 
 function pickType() {
   const w = [
     [GLASS, 1],
-    [OBSIDIAN, level >= 2 ? Math.min(0.26, 0.05 + 0.025 * level) : 0],
+    [OBSIDIAN, level >= 2 ? Math.min(0.18, 0.04 + 0.02 * level) : 0],
     [TEMPERED, level >= 4 ? Math.min(0.18, 0.06 + 0.015 * (level - 4)) : 0],
     [GOLD, level >= 2 ? 0.045 : 0.02],
     [PRISM, level >= 3 ? 0.028 : 0],
-    [HEART, (lives < 3 && level >= 2) ? 0.035 : 0]
+    [HEART, (lives < 3 && level >= 2) ? 0.05 : 0]
   ];
   let sum = 0; for (const e of w) sum += e[1];
   let r = Math.random() * sum;
@@ -428,7 +430,7 @@ function freeX(r) {
   lastSpawnX = x; return x;
 }
 function spawn() {
-  if (objs.length >= 16) return;
+  if (objs.length >= 11) return;
   const sp = fallSpeed();
   if (level >= 2 && Math.random() < 0.13) { // wave: a row made for a juicy swipe chain
     const maxK = Math.max(2, Math.floor(FW / (R * 2.5)));
@@ -443,7 +445,7 @@ function spawn() {
     return;
   }
   const type = pickType();
-  const o = createGlass(type, 0, 0, sp * rand(0.85, 1.15) * (type === GOLD ? 1.15 : 1));
+  const o = createGlass(type, 0, 0, sp * rand(0.88, 1.1));
   o.x = freeX(o.r); o.y = -o.r * 1.2;
   objs.push(o);
   if (type === OBSIDIAN && !obsHintShown) {
@@ -597,6 +599,11 @@ function scoreBreak(o, p, x, y) {
     }
   }
   score += pts; scorePop = 1;
+  // milestone reward: an extra life every 5 000 points keeps long runs alive
+  while (score >= nextLifeAt) {
+    nextLifeAt += 5000;
+    if (lives < 3) { lives++; showBanner(L.life, L.milestone(nextLifeAt - 5000), '#ff8fb0', 1.6); SFX.arp([noteFreq(5), noteFreq(7), noteFreq(10)], 0.07, 0.1); }
+  }
   floatText('+' + pts, x, y, clamp(S * 0.045, 16, 30), mult >= 4 ? '#ffe27a' : '#ffffff', 0.8);
   if (combo % 10 === 0) {
     floatText(L.combo + ' ' + combo + '!', W / 2, H * 0.36, clamp(S * 0.08, 28, 54), 'hsl(' + ((combo * 7) % 360) + ',100%,72%)', 1.1, -S * 0.04);
@@ -705,7 +712,7 @@ function startGame() {
   objs.length = 0; timers.length = 0;
   score = 0; shownScore = 0; lives = 3; combo = 0; comboT = 0; maxCombo = 0; broken = 0;
   elapsed = 0; level = 1; spawnT = 0.5; feverT = 0; nextFever = 25; slowT = 0;
-  newBest = false; bestShown = false; lastLifeShown = false; prevBest = save.best;
+  newBest = false; bestShown = false; lastLifeShown = false; prevBest = save.best; nextLifeAt = 5000;
   levelHue = levelHueFor(1); banner = null;
   shareBtn.classList.remove('on');
   SFX.arp([noteFreq(0), noteFreq(2), noteFreq(4)], 0.07, 0.08);
@@ -752,7 +759,7 @@ function segHit(p, ax, ay, bx, by) {
     let t = L2 ? ((o.x - ax) * dx + (o.y - ay) * dy) / L2 : 0;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     const cx = ax + dx * t, cy = ay + dy * t;
-    const hr = o.type === OBSIDIAN ? o.r * 0.68 : o.r * 0.95 + (p.touch ? 8 : 2);
+    const hr = o.type === OBSIDIAN ? o.r * 0.62 : o.r * 1.05 + (p.touch ? 14 : 6);
     const ddx = o.x - cx, ddy = o.y - cy;
     if (ddx * ddx + ddy * ddy < hr * hr) hitObject(o, cx, cy, ndx, ndy, p);
   }
@@ -864,7 +871,7 @@ function update(rdt) {
   }
 
   // objects
-  const f = slowT > 0 ? 0.42 : 1, grav = H * 0.03;
+  const f = slowT > 0 ? 0.42 : 1, grav = H * 0.015;
   for (let i = objs.length - 1; i >= 0; i--) {
     const o = objs[i];
     if (o.dead) { objs.splice(i, 1); continue; }
