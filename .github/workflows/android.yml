@@ -1,0 +1,81 @@
+name: Android build
+
+# Builds the Glass Symphony Android app from the web game.
+#  - Always: a debug APK you can install on your own phone for testing.
+#  - When the upload-key secrets exist: a signed release AAB for Google Play (and a signed APK).
+# Download the results from the run page under "Artifacts".
+
+on:
+  push:
+    branches: [main]
+    paths: ['index.html', 'icon*', 'mobile/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['index.html', 'icon*', 'mobile/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install and copy the game into the app
+        run: |
+          npm ci
+          npm run sync
+
+      - name: Restore upload key
+        if: env.HAS_KEY == 'true' && github.event_name != 'pull_request'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          echo "GS_KEYSTORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+
+      - name: Build
+        working-directory: mobile/android
+        env:
+          GS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          GS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          TASKS="assembleDebug"
+          if [ -n "$GS_KEYSTORE_FILE" ]; then TASKS="$TASKS bundleRelease assembleRelease"; fi
+          ./gradlew --no-daemon -PversionCode=${{ github.run_number }} $TASKS
+
+      - name: Upload debug APK (for testing on your phone)
+        uses: actions/upload-artifact@v4
+        with:
+          name: glass-symphony-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+      - name: Upload release AAB (for Google Play)
+        if: env.GS_KEYSTORE_FILE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: glass-symphony-release-aab
+          path: |
+            mobile/android/app/build/outputs/bundle/release/*.aab
+            mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

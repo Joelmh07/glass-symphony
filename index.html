@@ -47,6 +47,19 @@
   #share.on { opacity: 1; pointer-events: auto; }
   #share:active { transform: translateX(-50%) scale(.92); }
   [hidden] { display: none !important; }
+  /* continue-for-an-ad button: only ever shown in the store app (window.GSAds) */
+  #revive {
+    left: 50%; top: 60%; transform: translateX(-50%); z-index: 3;
+    padding: 14px 26px 13px; border-radius: 999px; text-align: center; white-space: nowrap;
+    background: linear-gradient(180deg, rgba(255,226,122,.28), rgba(255,170,60,.18));
+    border-color: rgba(255,226,122,.75); color: #fff3c4; font-weight: 900; font-size: 18px; letter-spacing: .03em;
+    box-shadow: 0 0 24px rgba(255,200,90,.35); animation: gs-revive 1.4s ease-in-out infinite;
+  }
+  #revive small { display: block; font-weight: 600; font-size: 12px; opacity: .8; letter-spacing: .02em; margin-top: 2px; }
+  #revive:active { transform: translateX(-50%) scale(.92); }
+  #revive[disabled] { opacity: .55; animation: none; }
+  @keyframes gs-revive { 0%, 100% { box-shadow: 0 0 18px rgba(255,200,90,.25); } 50% { box-shadow: 0 0 34px rgba(255,200,90,.6); } }
+  @media (prefers-reduced-motion: reduce) { #revive { animation: none; } }
 
   /* ---------- How to play ---------- */
   #help {
@@ -115,6 +128,7 @@
 <div id="safe"></div>
 <button id="mute" class="btn" aria-label="Sound on/off"></button>
 <button id="share" class="btn"></button>
+<button id="revive" class="btn" type="button" hidden></button>
 <button id="help" class="btn" type="button"><span class="q" aria-hidden="true">?</span><span id="helpLabel"></span></button>
 <div id="howto" role="dialog" aria-modal="true" aria-labelledby="howtoTitle" hidden>
   <div class="panel">
@@ -177,7 +191,8 @@ const L = FI ? {
   heartT: 'Sydän', heart: 'palauttaa elämän',
   tip: 'Vinkki: pyyhkäise monen lasin läpi yhdellä vedolla, niin saat ketjubonuksen.', gotIt: 'Selvä, pelataan!', close: 'Sulje',
   ranks: ['Aloittelija', 'Lasinpuhaltaja', 'Kristallisti', 'Virtuoosi', 'Maestro', 'Legenda'],
-  shareText: n => 'Sain ' + n + ' pistettä Glass Symphonyssa! Pystytkö parempaan?'
+  shareText: n => 'Sain ' + n + ' pistettä Glass Symphonyssa! Pystytkö parempaan?',
+  revive: 'JATKA ♥', reviveSub: 'katso lyhyt mainos', revived: 'JATKETAAN!'
 } : {
   tap: 'TAP', hint1: 'Tap or swipe the glass before it hits the ground',
   hint2: 'Never touch the black glass', best: 'Best', newBest: 'NEW BEST!',
@@ -194,7 +209,8 @@ const L = FI ? {
   heartT: 'Heart', heart: 'restores a life',
   tip: 'Tip: swipe through several panes in one stroke for a chain bonus.', gotIt: 'Got it, let’s play!', close: 'Close',
   ranks: ['Novice', 'Glassblower', 'Crystalist', 'Virtuoso', 'Maestro', 'Legend'],
-  shareText: n => 'I scored ' + n + ' in Glass Symphony! Can you beat it?'
+  shareText: n => 'I scored ' + n + ' in Glass Symphony! Can you beat it?',
+  revive: 'CONTINUE ♥', reviveSub: 'watch a short ad', revived: 'BACK IN!'
 };
 document.documentElement.lang = FI ? 'fi' : 'en';
 const RANK_AT = [0, 500, 1500, 4000, 8000, 15000];
@@ -398,7 +414,7 @@ let elapsed = 0, level = 1, spawnT = 0, feverT = 0, nextFever = 25, slowT = 0;
 let hitStop = 0, trauma = 0, redFlash = 0, goldFlash = 0, stateT = 0, scorePop = 0;
 let newBest = false, bestShown = false, levelHue = 195, bgHue = 235, lastSpawnX = -999, strokeId = 0;
 let runBest = 0, startPane = null, obsHintShown = !!save.seenObs, lastLifeShown = false;
-let banner = null, prevBest = 0, nextLifeAt = 5000;
+let banner = null, prevBest = 0, nextLifeAt = 5000, revived = false;
 
 /* ---------- effect pools ---------- */
 const shards = [], sparks = [], texts = [], rings = [], flashes = [], cracks = [], trail = [], dust = [];
@@ -808,6 +824,7 @@ function startGame() {
   score = 0; shownScore = 0; lives = 3; combo = 0; comboT = 0; maxCombo = 0; broken = 0;
   elapsed = 0; level = 1; spawnT = 0.5; feverT = 0; nextFever = 25; slowT = 0;
   newBest = false; bestShown = false; lastLifeShown = false; prevBest = save.best; nextLifeAt = 5000;
+  revived = false; hideRevive();
   levelHue = levelHueFor(1); banner = null;
   shareBtn.classList.remove('on');
   setHelpVisible(false);
@@ -835,6 +852,35 @@ function finishGame() {
   }
   shareBtn.classList.add('on');
   setHelpVisible(true);
+  offerRevive();
+}
+/* ---------- store-app ad hooks ----------
+   The Android/iOS build injects window.GSAds (mobile/src/ads.js). On the web it is absent and
+   none of this does anything. One rewarded "continue" per run; interstitials only between runs. */
+const ADS = window.GSAds || null;
+function offerRevive() {
+  if (!ADS || revived || score < 50 || !ADS.rewardReady()) return;
+  reviveBtn.disabled = false; reviveBtn.hidden = false;
+}
+function hideRevive() { reviveBtn.hidden = true; }
+function revive() {
+  // undo what finishGame recorded; the run is counted again when it really ends
+  save.games = Math.max(0, save.games - 1); save.total = Math.max(0, save.total - broken);
+  if (newBest) save.best = runBest;
+  persist();
+  revived = true; hideRevive(); timers.length = 0; objs.length = 0;
+  state = 'play'; stateT = 0; lives = 1; combo = 0; comboT = 0;
+  newBest = false; lastLifeShown = true; goldFlash = 1;
+  slowT = 2.5; spawnT = 1.1; // a short slow-mo grace period to get back into it
+  shareBtn.classList.remove('on'); setHelpVisible(false);
+  SFX.init(); SFX.power();
+  showBanner(L.revived, '', '#ffe27a', 1.4);
+}
+function restart() {
+  goldFlash = 0; hideRevive();
+  // an interstitial may play first; the ad layer calls startGame when it closes
+  if (ADS && ADS.beforeRestart(startGame)) return;
+  startGame();
 }
 function confetti() {
   const o = createGlass(GLASS, rand(W * 0.15, W * 0.85), -R, 0);
@@ -873,7 +919,7 @@ function onDown(e) {
     segHit(p, p.x, p.y, p.x, p.y);
     if (startPane && !startPane.dead) hitObject(startPane, startPane.x + (p.x - startPane.x) * 0.2, startPane.y + (p.y - startPane.y) * 0.2, 0, 0, p);
   } else if (state === 'over') {
-    if (stateT > 0.9) { goldFlash = 0; startGame(); }
+    if (stateT > 0.9) restart();
   } else if (state === 'play') {
     segHit(p, p.x, p.y, p.x, p.y);
   }
@@ -907,11 +953,18 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   if (helpOpen) { if (e.code === 'Escape') closeHelp(); return; }
   if (e.code === 'KeyM') toggleMute();
-  if ((e.code === 'Space' || e.code === 'Enter') && state === 'over' && stateT > 0.9) startGame();
+  if ((e.code === 'Space' || e.code === 'Enter') && state === 'over' && stateT > 0.9) restart();
 });
 
 /* ---------- buttons ---------- */
 const muteBtn = document.getElementById('mute'), shareBtn = document.getElementById('share');
+const reviveBtn = document.getElementById('revive');
+reviveBtn.innerHTML = L.revive + '<small>' + L.reviveSub + '</small>';
+reviveBtn.addEventListener('click', () => {
+  if (!ADS || state !== 'over' || reviveBtn.disabled) return;
+  reviveBtn.disabled = true;
+  ADS.showReward().then(ok => { if (ok && state === 'over') revive(); else hideRevive(); }, hideRevive);
+});
 
 /* ---------- How to play ---------- */
 const helpBtn = document.getElementById('help'), howto = document.getElementById('howto');
@@ -1393,7 +1446,7 @@ toTitle();
 requestAnimationFrame(frame);
 
 // offline support: cache the game once, play anywhere without a connection
-if ('serviceWorker' in navigator && /^https?:/.test(location.protocol) && !TEST) {
+if ('serviceWorker' in navigator && /^https?:/.test(location.protocol) && !TEST && !ADS) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 

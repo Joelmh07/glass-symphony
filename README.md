@@ -5,3 +5,9 @@ One-finger glass-shattering arcade game. Every break plays a note; combos climb 
 - Plain HTML5 canvas + Web Audio, no build step.
 - Works offline (service worker) and installs to the home screen (web app manifest).
 - Open `index.html` directly, or serve the folder with any static host.
+
+## Store app
+
+`mobile/` wraps this same game into an Android app with Capacitor and adds AdMob ads (rewarded
+continue + occasional interstitial). The web version has no ads. See [mobile/README.md](mobile/README.md).
+Privacy policy: [privacy.html](privacy.html).
