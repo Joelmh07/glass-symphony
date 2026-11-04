@@ -1,0 +1,17 @@
+{
+  "appId": "io.github.joelmh07.glasssymphony",
+  "appName": "Glass Symphony",
+  "webDir": "www",
+  "backgroundColor": "#07060f",
+  "android": {
+    "backgroundColor": "#07060f",
+    "allowMixedContent": false,
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK"
+    }
+  }
+}

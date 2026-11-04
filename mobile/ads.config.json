@@ -1,0 +1,10 @@
+{
+  "_ohje": "Google AdMob -tunnukset. Nämä ovat Googlen virallisia TESTItunnuksia: ne näyttävät 'Test Ad' -mainoksia eivätkä tuota rahaa. Kun sinulla on AdMob-tili, vaihda omat tunnuksesi tähän ja aseta testMode false. Katso mobile/README.md.",
+  "testMode": true,
+  "appId": "ca-app-pub-3940256099942544~3347511713",
+  "rewardedId": "ca-app-pub-3940256099942544/5224354917",
+  "interstitialId": "ca-app-pub-3940256099942544/1033173712",
+  "interstitialEveryNthGame": 3,
+  "interstitialFirstAfterGames": 3,
+  "interstitialMinSeconds": 120
+}

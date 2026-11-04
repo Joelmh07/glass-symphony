@@ -1,0 +1,19 @@
+{
+  "name": "glass-symphony-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android (and later iOS) store build of Glass Symphony, made with Capacitor.",
+  "scripts": {
+    "web": "node scripts/build-web.mjs",
+    "sync": "node scripts/build-web.mjs && cap sync android",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor-community/admob": "8.2.1",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}
