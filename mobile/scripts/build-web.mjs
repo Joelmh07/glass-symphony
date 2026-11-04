@@ -30,12 +30,13 @@ mkdirSync(www, { recursive: true });
 let html = readFileSync(join(root, 'index.html'), 'utf8');
 const marker = '<script>\n(function () {';
 if (!html.includes(marker)) { console.error('Could not find the game script in index.html'); process.exit(1); }
-const inject = `<script>window.__GS_ADS_CONFIG__ = ${JSON.stringify(pub)};</script>\n<script src="ads.js"></script>\n`;
+const inject = `<script>window.__GS_ADS_CONFIG__ = ${JSON.stringify(pub)};</script>\n<script src="ads.js"></script>\n<script src="iap.js"></script>\n`;
 html = html.replace(marker, inject + marker);
 html = html.replace(/<link rel="manifest"[^>]*>\n?/, ''); // no PWA install prompt inside the app
 writeFileSync(join(www, 'index.html'), html);
 
 copyFileSync(join(mobile, 'src', 'ads.js'), join(www, 'ads.js'));
+copyFileSync(join(mobile, 'src', 'iap.js'), join(www, 'iap.js'));
 for (const f of ['icon.svg', 'icon-192.png', 'icon-512.png']) copyFileSync(join(root, f), join(www, f));
 
 console.log(`www/ ready (${pub.testMode ? 'TEST ads' : 'LIVE ads'})`);
