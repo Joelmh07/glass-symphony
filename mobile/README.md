@@ -68,3 +68,12 @@ automaattisesti. Päivitä `versionName` tiedostossa `android/app/build.gradle`.
 
 Sama projekti toimii iOS:lle (`npx cap add ios`), mutta rakentaminen vaatii Macin ja Xcoden sekä Apple
 Developer -jäsenyyden (99 USD/v). AdMob tarvitsee iOS:llä lisäksi App Tracking Transparency -kysymyksen.
+
+## Sovelluksen sisäiset ostot (valmius)
+
+Pelissä on valmiina kristallipaketit (`gs_gems_300`, `gs_gems_1000`, `gs_gems_3000`) ja
+välimainosten poisto (`gs_noads`). Peli käsittelee ostot itse: se lisää kristallit tai poistaa
+välimainokset kerran per ostotapahtuma ja tallentaa tilan. Maksulisäosaa ei ole vielä asennettu,
+joten oikean rahan tuotteet eivät näy kaupassa. Ohjeet niiden päälle kytkemiseen ovat tiedoston
+[`src/iap.js`](src/iap.js) alussa. Kristallit-välilehdellä näkyy jo nyt "Ilmaiset kristallit"
+-mainos (palkittu video, 5 kertaa päivässä).
