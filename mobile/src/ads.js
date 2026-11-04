@@ -88,55 +88,86 @@
   // Shows a full-screen ad and resolves once it has CLOSED (or failed to show), so the game never
   // runs behind an ad. Note: the plugin's show*() promises resolve at show time (interstitial) or on
   // reward (rewarded, and never if the player closes it early), so we wait for the events instead.
+  // On Android, Capacitor's addListener returns the handle directly (not a Promise), on the web a
+  // Promise: Promise.resolve() handles both. This promise never rejects.
+  var pending = null;         // { finish, at } while an ad is being shown
   function showFullScreen(kind) {
     var ev = kind === 'reward'
       ? { closed: 'onRewardedVideoAdDismissed', failed: 'onRewardedVideoAdFailedToShow', reward: 'onRewardedVideoAdReward' }
       : { closed: 'interstitialAdDismissed', failed: 'interstitialAdFailedToShow' };
     return new Promise(function (resolve) {
-      var earned = false, handles = [], finished = false, timer;
+      var earned = false, handles = [], finished = false, timer, backTimer, wentAway = false;
       function finish() {
         if (finished) return; finished = true;
-        clearTimeout(timer);
-        handles.forEach(function (h) { try { h.remove(); } catch (e) {} });
+        clearTimeout(timer); clearTimeout(backTimer); pending = null;
+        document.removeEventListener('visibilitychange', onVis);
+        document.removeEventListener('pause', onAway);
+        document.removeEventListener('resume', onBack);
+        handles.forEach(function (h) { try { if (h && h.remove) Promise.resolve(h.remove()).catch(function () {}); } catch (e) {} });
         resolve(earned);
       }
-      function on(name, fn) { return AdMob.addListener(name, fn).then(function (h) { handles.push(h); }); }
+      // backup for a lost "dismissed" event: the app comes back to the front when the ad closes
+      function onAway() { wentAway = true; clearTimeout(backTimer); }
+      function onBack() { if (wentAway) { clearTimeout(backTimer); backTimer = setTimeout(finish, 2500); } }
+      function onVis() { if (document.hidden) onAway(); else onBack(); }
+      document.addEventListener('visibilitychange', onVis);
+      document.addEventListener('pause', onAway);
+      document.addEventListener('resume', onBack);
+      function on(name, fn) {
+        try {
+          return Promise.resolve(AdMob.addListener(name, fn)).then(function (h) { handles.push(h); }, function () {});
+        } catch (e) { log('listen failed', name, e); return Promise.resolve(); }
+      }
+      pending = { finish: finish, at: Date.now() };
       var subs = [on(ev.closed, finish), on(ev.failed, finish)];
       if (ev.reward) subs.push(on(ev.reward, function () { earned = true; }));
       Promise.all(subs)
-        .then(function () { return kind === 'reward' ? (AdMob.showRewardVideoAd().catch(function (e) { log('show failed', e); finish(); }), null) : AdMob.showInterstitial(); })
+        .then(function () {
+          if (finished) return;
+          if (kind === 'reward') { AdMob.showRewardVideoAd().catch(function (e) { log('show failed', e); finish(); }); return; }
+          return AdMob.showInterstitial();
+        })
         .catch(function (e) { log('show failed', e); finish(); });
-      timer = setTimeout(finish, 120000); // safety net: never leave the player stuck
+      timer = setTimeout(finish, 90000); // safety net: never leave the player stuck
     });
+  }
+  // Taps only reach the game when no ad covers it. A tap that arrives well after an ad was asked for
+  // means the ad is gone (or never came), so stop waiting for it.
+  function unstick() {
+    if (pending && Date.now() - pending.at > 4000) { log('ad wait abandoned'); pending.finish(); }
   }
 
   function showReward() {
+    unstick();
     if (!rewardLoaded || showing) return Promise.resolve(false);
     showing = true; rewardLoaded = false;
     return showFullScreen('reward').then(function (earned) {
       showing = false; st.lastAdAt = Date.now(); persist();
       loadReward();
       return earned;
-    });
+    }, function () { showing = false; loadReward(); return false; });
   }
 
   // Called when the player taps "play again". Returns true if an ad is now showing;
-  // then `next` (startGame) is called once it closes.
+  // then `next` (startGame) is called exactly once, when it closes.
   function beforeRestart(next) {
-    if (showing) return true; // ignore extra taps while an ad is up
+    if (showing) { unstick(); return true; } // ignore extra taps while an ad is up
     st.runs++; persist();
     var due = st.runs >= firstAfter && st.runs % everyNth === 0 && Date.now() - st.lastAdAt >= minGapMs;
     if (!due || !interLoaded) { if (due) loadInter(); return false; }
     showing = true; interLoaded = false;
-    showFullScreen('inter').then(function () {
+    var called = false;
+    function done() {
       showing = false; st.lastAdAt = Date.now(); persist();
-      loadInter(); next();
-    });
+      loadInter();
+      if (!called) { called = true; next(); }
+    }
+    showFullScreen('inter').then(done, done);
     return true;
   }
 
   window.GSAds = {
-    rewardReady: function () { if (!rewardLoaded) loadReward(); return rewardLoaded && !showing; },
+    rewardReady: function () { unstick(); if (!rewardLoaded) loadReward(); return rewardLoaded && !showing; },
     showReward: showReward,
     beforeRestart: beforeRestart
   };
