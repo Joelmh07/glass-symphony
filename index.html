@@ -1495,6 +1495,15 @@ const dailyEl = document.getElementById('daily');
 const STORE = window.GSStore || null;
 let shopTab = 'balls', walletDrawn = -1;
 walletBtn.setAttribute('aria-label', L.shop);
+// Test helper, only in the debug APK (mobile/android/app/src/debug/assets/public/gs-debug.js):
+// a button that adds 10 000 crystals, so every ball, field and boost can be tried quickly.
+if (window.__GS_DEBUG__ === true) {
+  const t = document.createElement('button'); t.type = 'button'; t.id = 'gsDebugGems'; t.className = 'link';
+  t.textContent = (FI ? 'TESTI: ' : 'TEST: ') + '+10 000 ◆';
+  t.style.cssText = 'display:inline-block;margin:0 0 10px 4px;color:#ffb36b;';
+  t.addEventListener('click', () => { addCrystals(10000, t); renderShop(); });
+  shopBal.parentNode.insertAdjacentElement('afterend', t);
+}
 document.getElementById('shopTitle').textContent = L.shop;
 
 function syncWallet() {
