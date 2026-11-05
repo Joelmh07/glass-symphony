@@ -380,7 +380,9 @@ function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save));
    The URL and the anon key are public by design: the database only lets callers run the gs_*
    functions in supabase/migrations, which check every request. Empty = leaderboards are off.
    Project: glass-symphony (Frankfurt). Never put the service_role / secret key here. */
-const GS_API = window.__GS_API__ || { url: 'https://bgbnpivatpcmcuxyssho.supabase.co', key: 'sb_publishable_u52rUBJvrZdlG-CcIROMBQ_HZ3jbn7t' };
+// Leaderboards are switched off for the first release (the key is not accepted yet). To turn them on,
+// put the URL back with the publishable key copied from Supabase: url 'https://bgbnpivatpcmcuxyssho.supabase.co'.
+const GS_API = window.__GS_API__ || { url: '', key: '' };
 const GS_VERSION = '1.1.0';
 const NET = (function () {
   const on = !!(GS_API.url && GS_API.key) && /^https?:\/\//.test(GS_API.url);
