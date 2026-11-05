@@ -106,10 +106,11 @@
     font-family: inherit; font-weight: 900; font-size: 17px; line-height: 1; letter-spacing: .02em;
   }
   .modal button:active { transform: scale(.96); }
-  .tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px;
-    padding: 4px; border-radius: 999px; background: rgba(255,255,255,.06); }
-  .tabs button { height: 38px; border: 0; border-radius: 999px; background: none; color: rgba(255,255,255,.7);
-    font-family: inherit; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.06);
+    overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: 1 0 auto; height: 38px; padding: 0 7px; border: 0; border-radius: 999px; background: none; color: rgba(255,255,255,.7);
+    font-family: inherit; font-weight: 800; font-size: 13px; cursor: pointer; white-space: nowrap; }
   .tabs button[aria-selected="true"] { background: rgba(255,255,255,.16); color: #fff; }
   .items { display: grid; gap: 10px; }
   .item { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 10px 10px 10px 10px;
@@ -129,6 +130,12 @@
   .item .buy.used { border-color: transparent; background: none; color: #7fe8ff; cursor: default; }
   .item .buy.poor { opacity: .55; }
   .item .buy.money { border: 0; background: linear-gradient(90deg, #ffe27a, #ffb36b); color: #2a1800; }
+  .item .acts { display: flex; flex-direction: column; gap: 6px; }
+  .item .buy.tog { height: 30px; font-size: 12px; border-color: rgba(255,255,255,.25); background: none; color: rgba(255,255,255,.75); }
+  .item .buy.tog.on { border-color: rgba(125,255,207,.7); background: rgba(125,255,207,.14); color: #dfffee; }
+  .item .pv svg { position: absolute; inset: 8px; width: 40px; height: 40px; }
+  .item .pv .cnt { position: absolute; right: 4px; bottom: 2px; font-size: 13px; font-weight: 900; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,.8); }
   .item .buy[disabled] { opacity: .45; cursor: default; }
   .shake { animation: gs-shake .35s; }
   @keyframes gs-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
@@ -277,7 +284,9 @@ const save = {
   best: 0, total: 0, games: 0, seenObs: false, muted: false,
   // economy (crystals, shop, daily reward, purchases)
   crystals: 0, ball: 'glass', theme: 'symphony', balls: ['glass'], themes: ['symphony'],
-  dailyLast: '', dailyStreak: 0, noAds: false, purchases: [], freeGemsDay: '', freeGemsN: 0
+  dailyLast: '', dailyStreak: 0, noAds: false, purchases: [], freeGemsDay: '', freeGemsN: 0,
+  // fields (game modes) and boosts (one-run power-ups)
+  field: 'classic', fields: ['classic'], bests: {}, boosts: {}, armed: []
 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 // never trust what comes back from storage: a bad value must not break the game
@@ -293,6 +302,14 @@ try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); }
   if (typeof save.dailyLast !== 'string') save.dailyLast = '';
   if (typeof save.freeGemsDay !== 'string') save.freeGemsDay = '';
   save.noAds = save.noAds === true;
+  save.fields = list(save.fields, ['classic']); if (save.fields.indexOf('classic') < 0) save.fields.unshift('classic');
+  save.armed = list(save.armed, []);
+  const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const nums = v => { const o = {}; for (const k of Object.keys(obj(v)).slice(0, 32)) o[k] = Math.min(num(v[k]), 99999999); return o; };
+  save.bests = nums(save.bests); save.boosts = nums(save.boosts);
+  if (typeof save.ball !== 'string') save.ball = 'glass';
+  if (typeof save.theme !== 'string') save.theme = 'symphony';
+  if (typeof save.field !== 'string') save.field = 'classic';
 })();
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
@@ -324,8 +341,28 @@ const L = FI ? {
     glass: ['Lasipallo', 'Perusisku. Tasainen ja tarkka.'],
     marble: ['Marmoripallo', 'Painava: rikkoo karkaistun lasin yhdellä iskulla.'],
     beam: ['Sädepallo', 'Kevyt ja nopea: 40 % leveämpi isku.'],
-    magnet: ['Magneettipallo', 'Vetää kristallisirut automaattisesti luoksesi.']
+    magnet: ['Magneettipallo', 'Vetää kristallisirut automaattisesti luoksesi.'],
+    ice: ['Jääpallo', 'Kylmä kosketus: kaikki lasi putoaa 15 % hitaammin.'],
+    star: ['Tähtipallo', 'Täydellisen osuman alue on puolet suurempi: enemmän kristalleja.'],
+    fire: ['Tulipallo', 'Räjähtää: rikkoo myös viereiset lasit (ei mustaa).'],
+    crown: ['Kuningaspallo', 'Jokainen rikottu lasi antaa 30 % enemmän pisteitä.']
   },
+  fields: {
+    classic: ['Klassinen', 'Alkuperäinen sinfonia. Kolme elämää.'],
+    storm: ['Myrsky', 'Tuuli heittelee laseja sivuttain. Pisteet ×1,25.'],
+    rush: ['Aikahaaste', '60 sekuntia, ei elämiä. Huti vie aikaa, sydän tuo lisää.'],
+    abyss: ['Syvyys', 'Alkaa tasolta 6 ja vain yksi elämä. Pisteet ja kristallit ×2.']
+  },
+  boosts: {
+    shield: ['Kilpi', 'Torjuu pelin ensimmäisen virheen (huti tai musta lasi).'],
+    life: ['Lisäsydän', 'Aloita peli neljällä elämällä.'],
+    fever: ['Kuumestartti', 'Peli alkaa 8 sekunnin sinfoniatilalla (pisteet ×2).'],
+    gems2: ['Kristallitupla', 'Jokainen kerätty kristalli lasketaan kahdesti.']
+  },
+  tabFields: 'Kentät', tabBoosts: 'Tehosteet', have: n => 'Sinulla ' + n, armOn: '✓ Päällä', armOff: 'Pois',
+  boostHint: 'Päällä olevat tehosteet käytetään seuraavassa pelissä (yksi kutakin).',
+  fieldLbl: 'Kenttä', nextRun: 'Seuraavaan peliin', shieldUp: 'KILPI!', timeUp: 'AIKA LOPPUI',
+  sec: n => n + ' s', timeLeft: 'Aika', wind: 'TUULI', ptsX: k => 'pisteet ×' + String(k).replace('.', ','),
   themes: {
     symphony: ['Sinfonia', 'Alkuperäinen yön sinivioletti.'],
     neon: ['Neon Cyberpunk', 'Pinkki ja syaani hehku.'],
@@ -364,8 +401,28 @@ const L = FI ? {
     glass: ['Glass ball', 'The classic strike. Steady and precise.'],
     marble: ['Marble ball', 'Heavy: breaks tempered glass in one hit.'],
     beam: ['Beam ball', 'Light and fast: a 40% wider strike.'],
-    magnet: ['Magnet ball', 'Pulls crystals to you automatically.']
+    magnet: ['Magnet ball', 'Pulls crystals to you automatically.'],
+    ice: ['Frost ball', 'A cold touch: all glass falls 15% slower.'],
+    star: ['Star ball', 'A 50% bigger perfect-hit zone: more crystals.'],
+    fire: ['Fireball', 'Explodes: also breaks the glass next to it (never black).'],
+    crown: ['Crown ball', 'Every break scores 30% more points.']
   },
+  fields: {
+    classic: ['Classic', 'The original symphony. Three lives.'],
+    storm: ['Storm', 'Wind throws the glass sideways. Points ×1.25.'],
+    rush: ['Time rush', '60 seconds, no lives. A miss costs time, a heart gives some back.'],
+    abyss: ['Abyss', 'Starts at level 6 with a single life. Points and crystals ×2.']
+  },
+  boosts: {
+    shield: ['Shield', 'Blocks your first mistake of the run (a miss or black glass).'],
+    life: ['Extra heart', 'Start the run with four lives.'],
+    fever: ['Fever start', 'The run starts with 8 seconds of symphony mode (points ×2).'],
+    gems2: ['Double crystals', 'Every crystal you collect counts twice.']
+  },
+  tabFields: 'Fields', tabBoosts: 'Boosts', have: n => 'You have ' + n, armOn: '✓ On', armOff: 'Off',
+  boostHint: 'Boosts that are on are used in your next run (one of each).',
+  fieldLbl: 'Field', nextRun: 'Next run', shieldUp: 'SHIELD!', timeUp: 'TIME UP',
+  sec: n => n + 's', timeLeft: 'Time', wind: 'WIND', ptsX: k => 'points ×' + k,
   themes: {
     symphony: ['Symphony', 'The original midnight violet.'],
     neon: ['Neon Cyberpunk', 'Hot pink and cyan glow.'],
@@ -387,11 +444,35 @@ const RANK_AT = [0, 500, 1500, 4000, 8000, 15000];
 // Balls: the orb that follows your finger. Each changes how you strike.
 //   hitK = strike radius, heavy = tempered glass in one hit, magnet = crystals fly to you, lag = how
 //   loosely the orb follows the finger (its "weight").
+//   fallK = glass fall speed, perfK = size of the "perfect hit" zone, fire = breaks the neighbours,
+//   ptsK = points multiplier.
+const BALL_BASE = { hitK: 1, heavy: false, magnet: false, fallK: 1, perfK: 1, fire: false, ptsK: 1 };
 const BALLS = {
-  glass:  { price: 0,   hitK: 1,   heavy: false, magnet: false, lag: 0.10, r: 0.30, c1: '#ffffff', c2: '#7fe8ff' },
-  marble: { price: 200, hitK: 1.1, heavy: true,  magnet: false, lag: 0.34, r: 0.40, c1: '#fff7ea', c2: '#9c8f86' },
-  beam:   { price: 400, hitK: 1.4, heavy: false, magnet: false, lag: 0.02, r: 0.24, c1: '#ffffff', c2: '#ffe27a' },
-  magnet: { price: 800, hitK: 1,   heavy: false, magnet: true,  lag: 0.16, r: 0.32, c1: '#ffd6e2', c2: '#ff5a7a' }
+  glass:  { price: 0,    lag: 0.10, r: 0.30, c1: '#ffffff', c2: '#7fe8ff' },
+  marble: { price: 200,  hitK: 1.1, heavy: true, lag: 0.34, r: 0.40, c1: '#fff7ea', c2: '#9c8f86' },
+  beam:   { price: 400,  hitK: 1.4, lag: 0.02, r: 0.24, c1: '#ffffff', c2: '#ffe27a' },
+  ice:    { price: 600,  fallK: 0.85, lag: 0.12, r: 0.31, c1: '#f2fdff', c2: '#5fb8ff' },
+  magnet: { price: 800,  magnet: true, lag: 0.16, r: 0.32, c1: '#ffd6e2', c2: '#ff5a7a' },
+  star:   { price: 1000, perfK: 1.55, lag: 0.08, r: 0.29, c1: '#fff2ff', c2: '#c58bff' },
+  fire:   { price: 1500, fire: true, lag: 0.14, r: 0.33, c1: '#fff1c2', c2: '#ff5a1f' },
+  crown:  { price: 2500, ptsK: 1.3, lag: 0.12, r: 0.32, c1: '#fffbe6', c2: '#e3a81b' }
+};
+for (const k of Object.keys(BALLS)) BALLS[k] = Object.assign({}, BALL_BASE, BALLS[k]);
+// Fields: game modes that change the flow of a run. Each keeps its own best score.
+//   ptsK/gemK = points/crystal multipliers, lives = starting (and max) lives, startLevel,
+//   wind = sideways gusts, timed = seconds on the clock instead of lives.
+const FIELDS = {
+  classic: { price: 0,    ptsK: 1,    gemK: 1, lives: 3, startLevel: 1, icon: '◇', pv: ['#2a2366', '#07060f'], col: '#7fe8ff' },
+  storm:   { price: 500,  ptsK: 1.25, gemK: 1, lives: 3, startLevel: 1, wind: true, icon: '≋', pv: ['#1d3a52', '#060b14'], col: '#9fd8ff' },
+  rush:    { price: 700,  ptsK: 1,    gemK: 1, lives: 3, startLevel: 1, timed: 60, icon: '◷', pv: ['#11463e', '#03100d'], col: '#7dffcf' },
+  abyss:   { price: 1000, ptsK: 2,    gemK: 2, lives: 1, startLevel: 6, icon: '▼', pv: ['#4a0b1c', '#100307'], col: '#ff7a8a' }
+};
+// Boosts: bought with crystals, used up one per run while switched on.
+const BOOSTS = {
+  shield: { price: 60,  icon: '⛉', col: '#9fd8ff' },
+  life:   { price: 100, icon: '♥', col: '#ff8fb0' },
+  fever:  { price: 80,  icon: '✦', col: '#ffe27a' },
+  gems2:  { price: 120, icon: '◆', col: '#7fe8ff' }
 };
 const hsl = (h, s, l) => 'hsl(' + ((h % 360) + 360) % 360 + ',' + s + '%,' + l + '%)';
 // Themes: background, glass palette and trail colour. Gold, heart and black glass keep their
@@ -413,6 +494,10 @@ const THEMES = {
     pv: ['#2a2a2a', '#080808'], dots: ['#ffffff', '#bdbdbd', '#7a7a7a'] }
 };
 let BALL = BALLS[save.ball] || BALLS.glass, THEME = THEMES[save.theme] || THEMES.symphony;
+let FIELD = FIELDS[save.field] || FIELDS.classic, fieldId = FIELDS[save.field] ? save.field : 'classic';
+const bestFor = id => (id === 'classic' ? save.best : save.bests[id] || 0);
+function setBestFor(id, v) { if (id === 'classic') save.best = v; else save.bests[id] = v; }
+const topBest = () => Math.max(save.best, ...Object.keys(FIELDS).map(bestFor));
 const gs = v => Math.round(v * THEME.gsat); // theme-scaled glass saturation
 const DAILY = [20, 30, 40, 50, 60, 80, 150];
 const FREE_GEMS = 25, FREE_GEMS_PER_DAY = 5;
@@ -634,6 +719,9 @@ let newBest = false, bestShown = false, levelHue = 195, bgHue = 235, lastSpawnX 
 let runBest = 0, startPane = null, obsHintShown = !!save.seenObs, lastLifeShown = false;
 let banner = null, prevBest = 0, nextLifeAt = 5000, revived = false;
 let runGems = 0, runBonus = 0, gemPop = 0, gemStep = 0, walletShown = save.crystals;
+// the field and boosts of the current run (fixed when it starts, so the shop cannot change them mid-run)
+let RF = FIELD, rfId = fieldId, maxLives = 3, rushT = 0, shieldOn = false, gemMul = 1, usedBoosts = [];
+let wind = 0, gustT = 0, gustDir = 1, nextGust = 4, timeUp = false;
 const gems = []; // crystal pickups
 const orb = { x: 0, y: 0, vx: 0, vy: 0, a: 0, tx: 0, ty: 0, on: false };
 
@@ -730,6 +818,7 @@ function createGlass(type, x, y, vy) {
    ========================================================= */
 // levels get longer as you go, so the pace keeps rising slowly instead of spiking
 function levelFor(t) { let lv = 1, d = 20; while (t >= d) { t -= d; lv++; d = Math.min(36, d + 2); } return lv; }
+function levelStart(lv) { let t = 0, d = 20; for (let i = 1; i < lv; i++) { t += d; d = Math.min(36, d + 2); } return t; }
 // curated "stained glass" palette; each level shifts which three hues dominate
 const HUES = [190, 210, 250, 280, 315, 345, 160, 175];
 const levelHueFor = lv => HUES[((lv - 1) * 2) % HUES.length];
@@ -749,7 +838,7 @@ function pickType() {
     [TEMPERED, level >= 4 ? Math.min(0.18, 0.06 + 0.015 * (level - 4)) : 0],
     [GOLD, level >= 2 ? 0.045 : 0.02],
     [PRISM, level >= 3 ? 0.028 : 0],
-    [HEART, (lives < 3 && level >= 2) ? 0.05 : 0]
+    [HEART, RF.timed ? (level >= 2 ? 0.035 : 0) : (lives < maxLives && level >= 2) ? 0.05 : 0]
   ];
   let sum = 0; for (const e of w) sum += e[1];
   let r = Math.random() * sum;
@@ -919,11 +1008,12 @@ function shatterFx(o, wx, wy, dx, dy, power, freq, opts) {
 function scoreBreak(o, p, x, y) {
   combo++; comboT = COMBO_WIN; maxCombo = Math.max(maxCombo, combo); broken++;
   const mult = Math.min(8, 1 + Math.floor(combo / 5)) * (feverT > 0 ? 2 : 1);
-  let pts = BASE_PTS[o.type] * mult;
+  const pk = RF.ptsK * BALL.ptsK;
+  let pts = Math.round(BASE_PTS[o.type] * mult * pk);
   if (p) {
     p.hits++;
     if (p.hits >= 2) {
-      pts += (p.hits - 1) * 15 * mult;
+      pts += Math.round((p.hits - 1) * 15 * mult * pk);
       if (p.hits >= 3) {
         floatText(L.chain + ' ×' + p.hits, x, y - R * 1.1, clamp(S * 0.07, 24, 46), 'hsl(' + ((p.hits * 40) % 360) + ',100%,75%)', 1.0, -S * 0.08);
         hitStop = Math.max(hitStop, 0.045); shake(0.12);
@@ -934,7 +1024,8 @@ function scoreBreak(o, p, x, y) {
   // milestone reward: an extra life every 5 000 points keeps long runs alive
   while (score >= nextLifeAt) {
     nextLifeAt += 5000;
-    if (lives < 3) { lives++; showBanner(L.life, L.milestone(nextLifeAt - 5000), '#ff8fb0', 1.6); SFX.arp([noteFreq(5), noteFreq(7), noteFreq(10)], 0.07, 0.1); }
+    if (RF.timed) { rushT += 5; showBanner('+' + L.sec(5), L.milestone(nextLifeAt - 5000), '#7dffcf', 1.6); SFX.arp([noteFreq(5), noteFreq(7), noteFreq(10)], 0.07, 0.1); }
+    else if (lives < maxLives) { lives++; showBanner(L.life, L.milestone(nextLifeAt - 5000), '#ff8fb0', 1.6); SFX.arp([noteFreq(5), noteFreq(7), noteFreq(10)], 0.07, 0.1); }
   }
   floatText('+' + pts, x, y, clamp(S * 0.045, 16, 30), mult >= 4 ? '#ffe27a' : '#ffffff', 0.8);
   if (combo % 10 === 0) {
@@ -949,8 +1040,22 @@ function scoreBreak(o, p, x, y) {
     bestShown = true; showBanner(L.newBest, '', '#ffe27a', 1.6); SFX.power(); goldFlash = 1;
   }
 }
-function loseLife(x, y) {
-  lives--; combo = 0; comboT = 0; redFlash = 1;
+function loseLife(x, y, cost) {
+  combo = 0; comboT = 0;
+  if (shieldOn) { // the shield boost eats the first mistake
+    shieldOn = false; redFlash = 0.3; buzz(20);
+    showBanner(L.shieldUp, '', '#9fd8ff', 1.1);
+    addRing(x, y, R * 0.6, S * 1.6, 'rgba(160,215,255,', 6, 0.55); SFX.crack(noteFreq(4), 0);
+    return;
+  }
+  redFlash = 1;
+  if (RF.timed) { // time rush: a mistake costs seconds instead of a life
+    rushT = Math.max(0, rushT - cost);
+    floatText('−' + L.sec(cost), x, y - R, clamp(S * 0.07, 24, 44), '#ff5a7a', 1.0);
+    if (rushT <= 0) { timeUp = true; endGame(); }
+    return;
+  }
+  lives--;
   floatText('−♥', x, y - R, clamp(S * 0.08, 28, 50), '#ff5a7a', 1.0);
   if (lives === 1 && !lastLifeShown) { lastLifeShown = true; showBanner(L.lastLife, '', '#ff5a7a', 1.3); }
   if (lives <= 0) endGame();
@@ -970,7 +1075,7 @@ function hitObject(o, px, py, dx, dy, p) {
     o.dead = true;
     shatterFx(o, px, py, dx, dy, 1.1, 0, { silent: true });
     SFX.hurt(pan); shake(0.75); buzz(80); hitStop = 0.08;
-    loseLife(o.x, o.y);
+    loseLife(o.x, o.y, 5);
     return;
   }
   if (o.type === TEMPERED && o.hp > 1 && !BALL.heavy) {
@@ -995,12 +1100,28 @@ function hitObject(o, px, py, dx, dy, p) {
   const big = o.type === GOLD || o.type === PRISM || o.type === HEART;
   shatterFx(o, px, py, dx, dy, big ? 1.25 : 1, noteFreq(combo - 1), { big });
   shake((big ? 0.3 : 0.1 + (p.hits >= 2 ? 0.06 : 0)) * (BALL.heavy ? 1.35 : 1)); buzz(big ? 30 : BALL.heavy ? 14 : 8);
+  if (BALL.fire) { // the fireball's blast also breaks plain glass nearby (never black glass or specials)
+    addRing(o.x, o.y, o.r * 0.5, S * 1.3, 'rgba(255,140,60,', 4, 0.35);
+    burst(o.x, o.y, 10, 25, 0.9, 62);
+    let d = 0.04;
+    for (const q of objs) {
+      if (q.dead || q === o || (q.type !== GLASS && q.type !== TEMPERED)) continue;
+      if (Math.hypot(q.x - o.x, q.y - o.y) > R * 2.6) continue;
+      const qq = q; d += 0.045;
+      timers.push({ t: d, fn: () => {
+        if (qq.dead || state !== 'play') return;
+        qq.dead = true; scoreBreak(qq, null, qq.x, qq.y);
+        shatterFx(qq, qq.x, qq.y, 0, 0, 1, noteFreq(combo - 1), { quiet: true });
+        burst(qq.x, qq.y, 8, 25, 0.7, 62);
+      } });
+    }
+  }
   if (o.type === GOLD) {
     slowT = 3.2; goldFlash = 1; hitStop = Math.max(hitStop, 0.07);
     showBanner(L.slow, '', '#ffe27a', 1.2); SFX.power();
   } else if (o.type === HEART) {
-    if (lives < 3) lives++;
-    floatText(L.life, o.x, o.y - R, clamp(S * 0.07, 24, 44), '#ff8fb0', 1.1);
+    if (RF.timed) rushT += 5; else if (lives < maxLives) lives++;
+    floatText(RF.timed ? '+' + L.sec(5) : L.life, o.x, o.y - R, clamp(S * 0.07, 24, 44), RF.timed ? '#7dffcf' : '#ff8fb0', 1.1);
     SFX.arp([noteFreq(5), noteFreq(7), noteFreq(10)], 0.07, 0.1);
   } else if (o.type === PRISM) {
     hitStop = Math.max(hitStop, 0.09); showBanner(L.prism, '', '#ffffff', 1.1); SFX.power();
@@ -1020,14 +1141,15 @@ function hitObject(o, px, py, dx, dy, p) {
 /* ---------- crystals: dropped by perfect breaks, collected by touch (or the magnet ball) ---------- */
 function dropGems(o, px, py, p) {
   let n = 0;
-  const centered = Math.hypot(px - o.x, py - o.y) < o.r * 0.32;
+  const centered = Math.hypot(px - o.x, py - o.y) < o.r * 0.32 * BALL.perfK;
   if (o.type === GOLD || o.type === PRISM) n = 2;
   else if (o.type === HEART) n = 1;
   else if (centered || (p && p.hits >= 3)) n = 1;
   if (!n) return;
   if (feverT > 0) n *= 2;
+  n *= RF.gemK;
   if (centered && o.type !== GOLD && o.type !== PRISM) floatText(L.perfect, o.x, o.y - R * 0.55, clamp(S * 0.036, 13, 20), '#7fe8ff', 0.7, -S * 0.1);
-  for (let i = 0; i < Math.min(n, 4); i++) spawnGem(o.x, o.y, false);
+  for (let i = 0; i < Math.min(n, 6); i++) spawnGem(o.x, o.y, false);
 }
 function spawnGem(x, y, visual) {
   if (gems.length > 60) return;
@@ -1056,7 +1178,7 @@ function updateGems(dt) {
       g.x += g.vx * dt; g.y += g.vy * dt;
       if (d < 18) {
         gems.splice(i, 1);
-        if (!g.visual) { save.crystals += 1; runGems += 1; persist(); }
+        if (!g.visual) { save.crystals += gemMul; runGems += gemMul; persist(); }
         gemPop = 1; SFX.gem(gemStep++);
         if (walletBtn.classList.contains('on')) { walletBtn.classList.remove('bump'); void walletBtn.offsetWidth; walletBtn.classList.add('bump'); }
       }
@@ -1097,7 +1219,7 @@ function hitFloor(o) {
   shatterFx(o, o.x, fy, 0, -1, 0.85, 0, { silent: true, ring: false });
   addRing(o.x, fy, o.r * 0.5, S * 0.7, 'rgba(255,70,100,', 3, 0.4);
   SFX.miss((o.x - W / 2) / (W / 2) * 0.7); shake(0.5); buzz(45);
-  loseLife(o.x, fy);
+  loseLife(o.x, fy, 3);
 }
 
 /* =========================================================
@@ -1113,12 +1235,28 @@ function toTitle() {
 function startGame() {
   state = 'play'; stateT = 0; startPane = null;
   objs.length = 0; timers.length = 0;
-  score = 0; shownScore = 0; lives = 3; combo = 0; comboT = 0; maxCombo = 0; broken = 0;
-  elapsed = 0; level = 1; spawnT = 0.5; feverT = 0; nextFever = 25; slowT = 0;
-  newBest = false; bestShown = false; lastLifeShown = false; prevBest = save.best; nextLifeAt = 5000;
+  RF = FIELD; rfId = fieldId;
+  score = 0; shownScore = 0; combo = 0; comboT = 0; maxCombo = 0; broken = 0;
+  level = RF.startLevel; elapsed = levelStart(level); spawnT = 0.5; feverT = 0; nextFever = 25; slowT = 0;
+  rushT = RF.timed || 0; timeUp = false; wind = 0; gustT = 0; nextGust = 4;
+  // boosts that are switched on: one of each is used up now
+  let startLives = RF.lives; shieldOn = false; gemMul = 1; usedBoosts = [];
+  for (const id of save.armed) {
+    if (!BOOSTS[id] || !(save.boosts[id] > 0)) continue;
+    save.boosts[id]--; usedBoosts.push(id);
+    if (id === 'shield') shieldOn = true;
+    else if (id === 'life') startLives++;
+    else if (id === 'fever') feverT = 8;
+    else if (id === 'gems2') gemMul = 2;
+  }
+  save.armed = save.armed.filter(id => save.boosts[id] > 0); persist();
+  lives = maxLives = startLives;
+  newBest = false; bestShown = false; lastLifeShown = lives <= 1; prevBest = bestFor(rfId); nextLifeAt = 5000;
   revived = false; hideRevive();
   runGems = 0; runBonus = 0; gems.length = 0; gemStep = 0;
-  levelHue = levelHueFor(1); banner = null;
+  levelHue = levelHueFor(level); banner = null;
+  if (feverT > 0) { goldFlash = 1; showBanner(L.fever, L.feverSub, '#ffe27a', 1.6); }
+  else if (rfId !== 'classic') showBanner(L.fields[rfId][0].toUpperCase(), RF.timed ? L.sec(RF.timed) : RF.ptsK > 1 ? L.ptsX(RF.ptsK) : '', RF.col, 1.6);
   shareBtn.classList.remove('on');
   setHelpVisible(false);
   SFX.arp([noteFreq(0), noteFreq(2), noteFreq(4)], 0.07, 0.08);
@@ -1126,6 +1264,7 @@ function startGame() {
 function endGame() {
   if (state !== 'play') return;
   state = 'dying'; stateT = 0; SFX.gameOver(); shake(0.6);
+  if (timeUp) showBanner(L.timeUp, '', '#7dffcf', 1.6);
   let d = 0.15;
   for (const o of objs) {
     if (o.dead) continue;
@@ -1135,9 +1274,9 @@ function endGame() {
 }
 function finishGame() {
   state = 'over'; stateT = 0;
-  newBest = score > save.best;
-  runBest = save.best;
-  if (newBest) save.best = score;
+  newBest = score > bestFor(rfId);
+  runBest = bestFor(rfId);
+  if (newBest) setBestFor(rfId, score);
   // end-of-run bonus: everyone makes progress, better runs make more
   runBonus = Math.floor(score / 250); save.crystals += runBonus;
   save.total += broken; save.games++; persist();
@@ -1163,10 +1302,11 @@ function revive() {
   // undo what finishGame recorded; the run is counted again when it really ends
   save.games = Math.max(0, save.games - 1); save.total = Math.max(0, save.total - broken);
   save.crystals = Math.max(0, save.crystals - runBonus); runBonus = 0;
-  if (newBest) save.best = runBest;
+  if (newBest) setBestFor(rfId, runBest);
   persist();
   revived = true; hideRevive(); timers.length = 0; objs.length = 0;
   state = 'play'; stateT = 0; lives = 1; combo = 0; comboT = 0;
+  if (RF.timed) { rushT = 15; timeUp = false; }
   newBest = false; lastLifeShown = true; goldFlash = 1;
   slowT = 2.5; spawnT = 1.1; // a short slow-mo grace period to get back into it
   shareBtn.classList.remove('on'); setHelpVisible(false);
@@ -1355,6 +1495,15 @@ const dailyEl = document.getElementById('daily');
 const STORE = window.GSStore || null;
 let shopTab = 'balls', walletDrawn = -1;
 walletBtn.setAttribute('aria-label', L.shop);
+// Test helper, only in the debug APK (mobile/android/app/src/debug/assets/public/gs-debug.js):
+// a button that adds 10 000 crystals, so every ball, field and boost can be tried quickly.
+if (window.__GS_DEBUG__ === true) {
+  const t = document.createElement('button'); t.type = 'button'; t.id = 'gsDebugGems'; t.className = 'link';
+  t.textContent = (FI ? 'TESTI: ' : 'TEST: ') + '+10 000 ◆';
+  t.style.cssText = 'display:inline-block;margin:0 0 10px 4px;color:#ffb36b;';
+  t.addEventListener('click', () => { addCrystals(10000, t); renderShop(); });
+  shopBal.parentNode.insertAdjacentElement('afterend', t);
+}
 document.getElementById('shopTitle').textContent = L.shop;
 
 function syncWallet() {
@@ -1371,8 +1520,26 @@ function addCrystals(n, fromEl) {
 }
 function equip(kind, id) {
   if (kind === 'balls') { save.ball = id; BALL = BALLS[id]; }
+  else if (kind === 'fields') { save.field = id; FIELD = FIELDS[id]; fieldId = id; }
   else { save.theme = id; THEME = THEMES[id]; for (const o of objs) styleGlass(o); }
   persist();
+}
+const CATS = () => ({ balls: [BALLS, L.balls, save.ball], fields: [FIELDS, L.fields, save.field], themes: [THEMES, L.themes, save.theme] });
+// small line icons for fields and boosts (SVG, so they look the same on every phone)
+function shopIcon(id, col) {
+  const st = ' fill="none" stroke="' + col + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"';
+  const fl = ' fill="' + col + '"';
+  const b = {
+    classic: '<path d="M24 6 40 24 24 42 8 24Z"' + st + '/><path d="M24 14 32 24 24 34 16 24Z"' + fl + ' opacity=".35"/>',
+    storm: '<path d="M6 16c6-5 10 5 16 0s10 5 16 0M6 26c6-5 10 5 16 0s10 5 16 0M10 36c5-4 9 4 14 0s9 4 14 0"' + st + '/>',
+    rush: '<circle cx="24" cy="26" r="15"' + st + '/><path d="M24 26V17M24 26l7 4M20 6h8"' + st + '/>',
+    abyss: '<path d="M8 10h32L24 40Z"' + st + '/><path d="M17 18h14M20 25h8"' + st + ' opacity=".6"/>',
+    shield: '<path d="M24 6 39 12 37 28C35 36 29 40 24 42 19 40 13 36 11 28L9 12Z"' + st + '/><path d="M24 14v20"' + st + ' opacity=".5"/>',
+    life: '<path d="M24 40C10 30 6 22 8 16c2-6 10-8 16-1 6-7 14-5 16 1 2 6-2 14-16 24Z"' + fl + ' opacity=".55"/><path d="M24 40C10 30 6 22 8 16c2-6 10-8 16-1 6-7 14-5 16 1 2 6-2 14-16 24Z"' + st + '/>',
+    fever: '<path d="M24 4 28 20 44 24 28 28 24 44 20 28 4 24 20 20Z"' + fl + ' opacity=".8"/>',
+    gems2: '<path d="M17 8 27 22 17 36 7 22Z"' + fl + ' opacity=".55"/><path d="M31 12 41 26 31 40 21 26Z"' + st + '/>'
+  }[id] || '';
+  return '<svg viewBox="0 0 48 48" aria-hidden="true">' + b + '</svg>';
 }
 function owns(kind, id) { return save[kind].indexOf(id) >= 0; }
 
@@ -1381,13 +1548,14 @@ function gemLabel(btn, n) { btn.textContent = ''; btn.appendChild(el('span', 'ge
 
 function renderTabs() {
   shopTabs.textContent = '';
-  const tabs = [['balls', L.tabBalls], ['themes', L.tabThemes]];
+  const tabs = [['balls', L.tabBalls], ['fields', L.tabFields], ['boosts', L.tabBoosts], ['themes', L.tabThemes]];
   if (ADS || STORE) tabs.push(['gems', L.tabGems]); // nothing to show there on the web
   for (const [id, name] of tabs) {
     const b = el('button', '', name); b.type = 'button'; b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', String(id === shopTab));
     b.addEventListener('click', () => { shopTab = id; shopMsg.textContent = ''; renderShop(); });
     shopTabs.appendChild(b);
+    if (id === shopTab) requestAnimationFrame(() => { try { b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} });
   }
 }
 function itemRow(preview, name, desc, on) {
@@ -1404,8 +1572,8 @@ function renderShop() {
   shopBal.textContent = Math.round(walletShown);
   shopList.textContent = '';
   if (shopTab === 'gems') return renderGems();
-  const kind = shopTab, defs = kind === 'balls' ? BALLS : THEMES, names = kind === 'balls' ? L.balls : L.themes;
-  const cur = kind === 'balls' ? save.ball : save.theme;
+  if (shopTab === 'boosts') return renderBoosts();
+  const kind = shopTab, [defs, names, cur] = CATS()[kind];
   for (const id of Object.keys(defs)) {
     const d = defs[id], have = owns(kind, id);
     const pv = el('div', 'pv');
@@ -1413,13 +1581,17 @@ function renderShop() {
       pv.style.background = 'rgba(255,255,255,.04)';
       const b = el('div', 'ball'); b.style.background = 'radial-gradient(circle at 35% 30%, ' + d.c1 + ', ' + d.c2 + ')';
       b.style.boxShadow = '0 0 18px ' + d.c2; pv.appendChild(b);
+    } else if (kind === 'fields') {
+      pv.style.background = 'linear-gradient(160deg, ' + d.pv[0] + ', ' + d.pv[1] + ')';
+      pv.innerHTML = shopIcon(id, d.col);
     } else {
       pv.style.background = 'linear-gradient(160deg, ' + d.pv[0] + ', ' + d.pv[1] + ')';
       const dots = el('div', 'dots');
       for (const c of d.dots) { const i = el('i'); i.style.background = c; dots.appendChild(i); }
       pv.appendChild(dots);
     }
-    const { row, btn } = itemRow(pv, names[id][0], names[id][1], id === cur);
+    const best = kind === 'fields' && have ? bestFor(id) : 0;
+    const { row, btn } = itemRow(pv, names[id][0], names[id][1] + (best ? '  ' + L.best + ' ' + best + '.' : ''), id === cur);
     if (id === cur) { btn.className = 'buy used'; btn.textContent = '✓ ' + L.inUse; btn.disabled = true; }
     else if (have) { btn.className = 'buy own'; btn.textContent = L.use; btn.addEventListener('click', () => { equip(kind, id); SFX.arp([noteFreq(2), noteFreq(4)], 0.05, 0.07); renderShop(); }); }
     else {
@@ -1430,7 +1602,7 @@ function renderShop() {
   }
 }
 function buyItem(kind, id, row, btn) {
-  const d = (kind === 'balls' ? BALLS : THEMES)[id];
+  const [defs, names] = CATS()[kind], d = defs[id];
   if (owns(kind, id)) return;
   if (save.crystals < d.price) {
     btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
@@ -1439,11 +1611,47 @@ function buyItem(kind, id, row, btn) {
   }
   save.crystals -= d.price; save[kind].push(id); equip(kind, id); // equip() persists
   SFX.power(); buzz(25);
-  shopMsg.textContent = L.bought((kind === 'balls' ? L.balls : L.themes)[id][0]);
+  shopMsg.textContent = L.bought(names[id][0]);
   renderShop();
   const rows = shopList.querySelectorAll('.item');
-  const i = Object.keys(kind === 'balls' ? BALLS : THEMES).indexOf(id);
+  const i = Object.keys(defs).indexOf(id);
   if (rows[i]) rows[i].classList.add('pop');
+}
+function renderBoosts() {
+  Object.keys(BOOSTS).forEach((id, i) => {
+    const d = BOOSTS[id], n = save.boosts[id] || 0, on = n > 0 && save.armed.indexOf(id) >= 0;
+    const pv = el('div', 'pv'); pv.style.background = 'rgba(255,255,255,.04)';
+    pv.innerHTML = shopIcon(id, d.col);
+    if (n) pv.appendChild(el('b', 'cnt', '×' + n));
+    const { row, btn } = itemRow(pv, L.boosts[id][0], L.boosts[id][1], on);
+    gemLabel(btn, d.price); btn.insertBefore(document.createTextNode('+1 '), btn.firstChild);
+    btn.setAttribute('aria-label', L.boosts[id][0] + ' +1, ' + d.price + ' ◆');
+    if (save.crystals < d.price) btn.classList.add('poor');
+    btn.addEventListener('click', () => {
+      if (save.crystals < d.price) {
+        btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+        shopMsg.textContent = L.needMore(d.price - save.crystals); SFX.hurt(0); buzz(30);
+        return;
+      }
+      save.crystals -= d.price; save.boosts[id] = n + 1;
+      if (save.armed.indexOf(id) < 0) save.armed.push(id); // a new boost is on by default
+      persist(); SFX.power(); buzz(25);
+      shopMsg.textContent = L.bought(L.boosts[id][0]);
+      renderShop();
+      const r = shopList.querySelectorAll('.item')[i]; if (r) r.classList.add('pop');
+    });
+    if (n) { // on/off: whether the next run uses one
+      const acts = el('div', 'acts'); row.replaceChild(acts, btn); acts.appendChild(btn);
+      const tog = el('button', 'buy tog' + (on ? ' on' : ''), on ? L.armOn : L.armOff); tog.type = 'button';
+      tog.setAttribute('aria-pressed', String(on));
+      tog.addEventListener('click', () => {
+        if (on) save.armed = save.armed.filter(x => x !== id); else save.armed.push(id);
+        persist(); SFX.arp([noteFreq(on ? 4 : 2), noteFreq(on ? 2 : 4)], 0.05, 0.07); renderShop();
+      });
+      acts.appendChild(tog);
+    }
+  });
+  shopList.appendChild(el('p', 'note', L.boostHint));
 }
 function freeGemsLeft() { return save.freeGemsDay === dayKey() ? Math.max(0, FREE_GEMS_PER_DAY - save.freeGemsN) : FREE_GEMS_PER_DAY; }
 function renderGems() {
@@ -1511,6 +1719,7 @@ function grantPurchase(id, txId, fromEl) {
 function openShop(tab) {
   if (tab) shopTab = tab;
   if (shopTab === 'gems' && !(ADS || STORE)) shopTab = 'balls';
+  if (!(shopTab in CATS()) && shopTab !== 'boosts' && shopTab !== 'gems') shopTab = 'balls';
   shopMsg.textContent = ''; renderShop();
   shopEl.hidden = false; pointers.clear();
   document.getElementById('shopClose').focus();
@@ -1557,6 +1766,11 @@ setTimeout(() => { if (state === 'title') openDaily(); }, 900);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && (state === 'title' || state === 'over')) setTimeout(openDaily, 400); });
 
 /* ---------- pause on tab switch ---------- */
+document.addEventListener('pointerdown', e => {
+  if (!paused) return;
+  paused = false; lastT = 0; pointers.clear();
+  if (e.target === cvs) { e.preventDefault(); e.stopPropagation(); } // this tap only resumes
+}, true);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (state === 'play' || state === 'dying') paused = true; pointers.clear(); SFX.suspend(); }
 });
@@ -1582,7 +1796,7 @@ function update(rdt) {
 
   if (state === 'play') {
     elapsed += dt;
-    const nl = levelFor(elapsed);
+    const nl = levelFor(RF.timed ? levelStart(RF.startLevel) + (elapsed - levelStart(RF.startLevel)) * 2 : elapsed);
     if (nl !== level) {
       level = nl; levelHue = levelHueFor(level);
       showBanner(L.level + ' ' + level, '', 'hsl(' + levelHue + ',100%,78%)', 1.4);
@@ -1593,10 +1807,22 @@ function update(rdt) {
     if (comboT > 0) { comboT -= dt; if (comboT <= 0) combo = 0; }
     if (feverT > 0) feverT -= dt;
     if (slowT > 0) slowT -= dt;
+    if (RF.timed) { rushT -= dt; if (rushT <= 0) { rushT = 0; timeUp = true; endGame(); } }
+    if (RF.wind) { // storm: a steady sway plus strong gusts you can see coming
+      nextGust -= dt;
+      if (nextGust <= 0) {
+        gustDir = Math.random() < 0.5 ? -1 : 1; gustT = 2.4; nextGust = rand(5, 9) * (level >= 6 ? 0.75 : 1);
+        floatText((gustDir < 0 ? '← ' : '') + L.wind + (gustDir > 0 ? ' →' : ''), W / 2, H * 0.3, clamp(S * 0.05, 18, 30), '#9fd8ff', 1.3, 0);
+        SFX.whoosh(0.8);
+      }
+      if (gustT > 0) gustT -= dt;
+    }
   }
+  const windT = RF.wind && state === 'play' ? Math.sin(elapsed * 0.45) * 0.22 + (gustT > 0 ? gustDir * Math.sin(Math.PI * gustT / 2.4) * 0.9 : 0) : 0;
+  wind += (windT - wind) * Math.min(1, dt * 3);
 
   // objects
-  const f = slowT > 0 ? 0.42 : 1, grav = H * 0.015;
+  const f = (slowT > 0 ? 0.42 : 1) * BALL.fallK, grav = H * 0.015, wpush = wind * S * 0.36;
   for (let i = objs.length - 1; i >= 0; i--) {
     const o = objs[i];
     if (o.dead) { objs.splice(i, 1); continue; }
@@ -1604,7 +1830,7 @@ function update(rdt) {
     if (o.type === START) { o.rot += o.vr * dt; o.y = H * 0.56 + Math.sin(o.t * 1.6) * S * 0.012; continue; }
     if (state === 'dying') continue;
     o.vy += grav * dt * f;
-    o.x += (o.vx + Math.cos(o.t * o.swayF + o.ph) * o.swayA * o.swayF) * dt * f;
+    o.x += (o.vx + wpush + Math.cos(o.t * o.swayF + o.ph) * o.swayA * o.swayF) * dt * f;
     o.y += o.vy * dt * f;
     o.rot += o.vr * dt * f;
     const lo = FX + o.r * 0.6, hi = FX + FW - o.r * 0.6;
@@ -1617,7 +1843,7 @@ function update(rdt) {
   const G = H * 1.7;
   for (let i = shards.length - 1; i >= 0; i--) {
     const s = shards[i];
-    s.vy += G * dt; s.vx *= 1 - 0.5 * dt;
+    s.vy += G * dt; s.vx *= 1 - 0.5 * dt; s.vx += wpush * 1.4 * dt;
     s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.vr * dt;
     if (s.y > floorY && s.vy > 0) { s.y = floorY; s.vy *= -0.32; s.vx *= 0.6; s.vr *= 0.5; }
     s.life -= dt;
@@ -1637,7 +1863,11 @@ function update(rdt) {
   updateOrb(rdt);
   for (let i = trail.length - 1; i >= 0; i--) { trail[i].t += rdt; }
   while (trail.length && trail[0].t > 0.14) trail.shift();
-  for (const d of dust) { d.y -= S * 0.012 * d.z * rdt; if (d.y < -4) { d.y = H + 4; d.x = rand(0, W); } }
+  for (const d of dust) {
+    d.y -= S * 0.012 * d.z * rdt; d.x += wind * S * 0.9 * d.z * rdt;
+    if (d.y < -4) { d.y = H + 4; d.x = rand(0, W); }
+    if (d.x < -40) d.x += W + 80; else if (d.x > W + 40) d.x -= W + 80;
+  }
 
   if (banner) { banner.life -= rdt; if (banner.life <= 0) banner = null; }
   trauma = Math.max(0, trauma - rdt * 1.9);
@@ -1669,6 +1899,8 @@ function updateOrb(dt) {
   const f = 1 - Math.exp(-dt / Math.max(0.004, BALL.lag * 0.12));
   orb.vx = (orb.tx - orb.x) * f; orb.vy = (orb.ty - orb.y) * f;
   orb.x += orb.vx; orb.y += orb.vy;
+  if (BALL.fire && orb.a > 0.3 && Math.random() < dt * 45)
+    addSpark(orb.x + rand(-1, 1) * R * 0.15, orb.y + rand(-1, 1) * R * 0.15, rand(-1, 1) * S * 0.04, -S * rand(0.12, 0.3), 'hsl(' + randi(12, 45) + ',100%,62%)', rand(1.4, 2.6), rand(0.18, 0.36));
 }
 function drawOrb(now) {
   if (orb.a < 0.02) return;
@@ -1687,6 +1919,20 @@ function drawOrb(now) {
   if (BALL.heavy) { // marble veins
     ctx.strokeStyle = 'rgba(90,80,75,0.5)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x - r * 0.6, y + r * 0.1); ctx.quadraticCurveTo(x, y - r * 0.4, x + r * 0.55, y + r * 0.3); ctx.stroke();
+  }
+  if (BALL.fallK < 1) { // frost: a small snowflake
+    ctx.save(); ctx.translate(x, y); ctx.rotate(now * 0.0012);
+    ctx.strokeStyle = 'rgba(235,250,255,' + (0.85 * orb.a) + ')'; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = i * TAU / 6; ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * r * 0.75, Math.sin(a) * r * 0.75); }
+    ctx.stroke(); ctx.restore();
+  }
+  if (BALL.perfK > 1 || BALL.ptsK > 1) { // star / crown: a turning four-point sparkle
+    ctx.save(); ctx.translate(x, y); ctx.rotate(now * 0.003);
+    const k = r * (1.7 + 0.2 * Math.sin(now * 0.01));
+    ctx.fillStyle = BALL.ptsK > 1 ? 'rgba(255,226,122,' + (0.8 * orb.a) + ')' : 'rgba(240,210,255,' + (0.8 * orb.a) + ')';
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? k * 0.18 : k; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fill(); ctx.restore();
   }
   if (BALL.magnet) { // spinning field ring
     ctx.save(); ctx.translate(x, y); ctx.rotate(now * 0.004);
@@ -1780,7 +2026,8 @@ function render(now) {
   for (const d of dust) {
     const a = 0.25 + 0.25 * Math.sin(now * 0.002 + d.p);
     ctx.globalAlpha = a * d.z; const z = 1 + d.z * 1.4;
-    ctx.fillRect(d.x, d.y, z, z);
+    if (Math.abs(wind) > 0.12) ctx.fillRect(d.x, d.y, -wind * 40 * d.z, Math.max(1, z * 0.6)); // wind streaks
+    else ctx.fillRect(d.x, d.y, z, z);
   }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   // play field edges on wide screens
@@ -1859,7 +2106,7 @@ function render(now) {
   // vignettes
   ctx.drawImage(vigDark, 0, 0, W, H);
   if (redFlash > 0) { ctx.globalAlpha = redFlash; ctx.drawImage(vigRed, 0, 0, W, H); }
-  if (state === 'play' && lives === 1) { ctx.globalAlpha = 0.18 + 0.12 * Math.sin(now * 0.006); ctx.drawImage(vigRed, 0, 0, W, H); }
+  if (state === 'play' && (RF.timed ? rushT < 10 : lives === 1)) { ctx.globalAlpha = 0.18 + 0.12 * Math.sin(now * 0.006); ctx.drawImage(vigRed, 0, 0, W, H); }
   if (goldFlash > 0 || feverT > 0) {
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = Math.max(goldFlash * 0.8, feverT > 0 ? 0.25 + 0.15 * Math.sin(now * 0.012) : 0);
@@ -1897,7 +2144,18 @@ function render(now) {
 }
 
 function drawLives(x, y, size) {
-  for (let i = 0; i < 3; i++) {
+  if (RF.timed) { // time rush: the clock replaces the hearts
+    const low = rushT < 10;
+    txt('◷ ' + Math.ceil(rushT), x - size * 0.4, y, size * 1.25 * (low ? 1 + 0.08 * Math.sin(performance.now() * 0.02) : 1), low ? '#ff5a7a' : '#7dffcf', { align: 'left', w: 900, outline: 'rgba(0,0,0,0.35)', fit: 0 });
+    return;
+  }
+  if (shieldOn) { // shield boost: a little shield after the hearts
+    const sx = x + maxLives * size * 1.25 + size * 0.1, s = size * 0.55;
+    ctx.beginPath(); ctx.moveTo(sx, y - s); ctx.lineTo(sx + s * 0.85, y - s * 0.62); ctx.lineTo(sx + s * 0.7, y + s * 0.35);
+    ctx.lineTo(sx, y + s); ctx.lineTo(sx - s * 0.7, y + s * 0.35); ctx.lineTo(sx - s * 0.85, y - s * 0.62); ctx.closePath();
+    ctx.fillStyle = 'rgba(160,215,255,0.35)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#cfeaff'; ctx.stroke();
+  }
+  for (let i = 0; i < maxLives; i++) {
     const cx = x + i * size * 1.25, on = i < lives;
     ctx.beginPath(); ctx.moveTo(cx, y - size * 0.5); ctx.lineTo(cx + size * 0.42, y); ctx.lineTo(cx, y + size * 0.5); ctx.lineTo(cx - size * 0.42, y); ctx.closePath();
     ctx.fillStyle = on ? 'rgba(255,120,160,0.55)' : 'rgba(255,255,255,0.06)'; ctx.fill();
@@ -1952,10 +2210,19 @@ function drawTitle(now) {
     const pulse = 1 + 0.06 * Math.sin(now * 0.006);
     txt(L.tap, startPane.x, startPane.y, clamp(S * 0.06, 20, 38) * pulse, '#ffffff', { w: 900, outline: 'rgba(0,0,0,0.3)', fit: startPane.r * 1.45 });
   }
-  const hs = clamp(S * 0.036, 13, 19), hy = Math.min(H * 0.8, H - safeB - hs * 5.2);
+  const hs = clamp(S * 0.036, 13, 19), hy = Math.min(H * 0.8, H - safeB - hs * 7);
   txt(L.hint1, W / 2, hy, hs, 'rgba(255,255,255,0.8)', { w: 600 });
   txt('⬢  ' + L.hint2, W / 2, hy + hs * 1.7, hs, '#c58bff', { w: 700 });
-  if (save.best > 0) txt(L.best + ' ' + save.best + '   ·   ' + L.rank + ': ' + L.ranks[rankIndex(save.best)], W / 2, hy + hs * 3.6, hs * 0.95, '#ffe27a', { w: 700 });
+  const fb = bestFor(fieldId);
+  if (fb > 0 || topBest() > 0) txt(L.best + ' ' + fb + '   ·   ' + L.rank + ': ' + L.ranks[rankIndex(topBest())], W / 2, hy + hs * 3.6, hs * 0.95, '#ffe27a', { w: 700 });
+  const nr = nextRunText();
+  if (nr) txt(nr, W / 2, hy + hs * 5.3, hs * 0.9, FIELD.col, { w: 800 });
+}
+// "Field: Storm · Shield, Extra heart" when the next run is not a plain classic one
+function nextRunText() {
+  const on = save.armed.filter(id => BOOSTS[id] && save.boosts[id] > 0).map(id => L.boosts[id][0]);
+  if (fieldId === 'classic' && !on.length) return '';
+  return L.fields[fieldId][0] + (on.length ? '  ·  ' + on.join(', ') : '');
 }
 
 function drawOver(now) {
@@ -1965,7 +2232,7 @@ function drawOver(now) {
   ctx.globalAlpha = a;
   const u = clamp(S * 0.1, 30, 70);
   let y = Math.max(safeT + u * 0.9, H * 0.16);
-  txt(L.over, W / 2, y, u * 0.48, 'rgba(255,255,255,0.75)', { w: 800 });
+  txt(timeUp ? L.timeUp : rfId !== 'classic' ? L.fields[rfId][0].toUpperCase() : L.over, W / 2, y, u * 0.48, rfId !== 'classic' ? RF.col : 'rgba(255,255,255,0.75)', { w: 800 });
   y += u * 1.25;
   const pop = stateT < 0.5 ? 1 + (1 - stateT / 0.5) * 0.25 : 1;
   txt(String(score), W / 2, y, u * 1.6 * pop, newBest ? '#ffe27a' : '#ffffff', { w: 900, outline: 'rgba(0,0,0,0.4)' });
@@ -1974,9 +2241,9 @@ function drawOver(now) {
   if (newBest && score > 0) {
     txt(L.newBest, W / 2, y, s2 * (1 + 0.08 * Math.sin(now * 0.01)), '#ffe27a', { w: 900 });
   } else {
-    const gap = save.best - score;
-    if (gap > 0 && gap <= Math.max(150, save.best * 0.3)) txt(L.toBeat(gap), W / 2, y, s2 * 0.9, '#ffb36b', { w: 800 });
-    else txt(L.best + ' ' + save.best, W / 2, y, s2 * 0.9, 'rgba(255,255,255,0.7)', { w: 700 });
+    const fb = bestFor(rfId), gap = fb - score;
+    if (gap > 0 && gap <= Math.max(150, fb * 0.3)) txt(L.toBeat(gap), W / 2, y, s2 * 0.9, '#ffb36b', { w: 800 });
+    else txt(L.best + ' ' + fb, W / 2, y, s2 * 0.9, 'rgba(255,255,255,0.7)', { w: 700 });
   }
   y += u * 0.75;
   txt(L.maxCombo + ' ' + maxCombo + '   ·   ' + L.shattered + ' ' + broken, W / 2, y, s2 * 0.75, 'rgba(255,255,255,0.6)', { w: 600 });
@@ -1986,13 +2253,13 @@ function drawOver(now) {
   }
   // rank + progress to next rank (the long-term hook)
   y += u * 0.95;
-  const ri = rankIndex(save.best);
+  const tb = topBest(), ri = rankIndex(tb);
   txt(L.rank + ': ' + L.ranks[ri], W / 2, y, s2 * 0.95, 'hsl(' + (190 + ri * 30) + ',100%,78%)', { w: 900 });
   y += u * 0.5;
   const bw = Math.min(W * 0.7, 320);
   ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(W / 2 - bw / 2, y, bw, 6);
   if (ri + 1 < RANK_AT.length) {
-    const k = clamp((save.best - RANK_AT[ri]) / (RANK_AT[ri + 1] - RANK_AT[ri]), 0, 1);
+    const k = clamp((tb - RANK_AT[ri]) / (RANK_AT[ri + 1] - RANK_AT[ri]), 0, 1);
     ctx.fillStyle = 'hsl(' + (190 + ri * 30) + ',100%,70%)'; ctx.fillRect(W / 2 - bw / 2, y, bw * k, 6);
     txt(L.next + ': ' + L.ranks[ri + 1] + ' (' + RANK_AT[ri + 1] + ')', W / 2, y + u * 0.42, s2 * 0.7, 'rgba(255,255,255,0.55)', { w: 600 });
   } else {
@@ -2003,6 +2270,8 @@ function drawOver(now) {
     ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now * 0.006);
     const ay = Math.min(H * 0.8, H - safeB - 100);
     txt(L.again, W / 2, ay, clamp(S * 0.05, 18, 28), '#ffffff', { w: 800 });
+    const nr = nextRunText();
+    if (nr) { ctx.globalAlpha = 1; txt(L.nextRun + ': ' + nr, W / 2, ay + clamp(S * 0.05, 18, 28) * 1.3, clamp(S * 0.033, 12, 17), FIELD.col, { w: 700 }); }
   }
   ctx.globalAlpha = 1;
 }
@@ -2051,7 +2320,11 @@ if (TEST) {
     addCrystals(n) { save.crystals += n; persist(); },
     dropGem(x, y) { spawnGem(x, y, false); },
     gemPos() { return gems.map(g => [g.x, g.y, g.fly]); },
-    grant: grantPurchase, openShop, openDaily
+    grant: grantPurchase, openShop, openDaily, equip,
+    get field() { return rfId; }, get rushT() { return rushT; }, get shield() { return shieldOn; },
+    get maxLives() { return maxLives; }, get wind() { return wind; }, get boosts() { return save.boosts; },
+    get armed() { return save.armed; }, get paused() { return paused; }, set paused(v) { paused = v; },
+    bestFor
   };
 }
 })();

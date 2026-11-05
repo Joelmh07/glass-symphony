@@ -30,7 +30,8 @@ mkdirSync(www, { recursive: true });
 let html = readFileSync(join(root, 'index.html'), 'utf8');
 const marker = '<script>\n(function () {';
 if (!html.includes(marker)) { console.error('Could not find the game script in index.html'); process.exit(1); }
-const inject = `<script>window.__GS_ADS_CONFIG__ = ${JSON.stringify(pub)};</script>\n<script src="ads.js"></script>\n<script src="iap.js"></script>\n`;
+// gs-debug.js exists only in the debug APK (android/app/src/debug/assets): it turns on test helpers.
+const inject = `<script src="gs-debug.js"></script>\n<script>window.__GS_ADS_CONFIG__ = ${JSON.stringify(pub)};</script>\n<script src="ads.js"></script>\n<script src="iap.js"></script>\n`;
 html = html.replace(marker, inject + marker);
 html = html.replace(/<link rel="manifest"[^>]*>\n?/, ''); // no PWA install prompt inside the app
 writeFileSync(join(www, 'index.html'), html);
