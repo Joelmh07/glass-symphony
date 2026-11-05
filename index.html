@@ -385,7 +385,7 @@ const GS_VERSION = '1.1.0';
 const NET = (function () {
   const on = !!(GS_API.url && GS_API.key) && /^https?:\/\//.test(GS_API.url);
   const AUTH_KEY = 'glassSymphony.auth', QUEUE_KEY = 'glassSymphony.queue';
-  let sess = null, me = null, authing = null, queue = [];
+  let sess = null, me = null, authing = null, queue = [], lastErr = null;
   try { sess = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) {}
   try { queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch (e) {}
   if (!Array.isArray(queue)) queue = [];
@@ -438,7 +438,8 @@ const NET = (function () {
   return {
     on,
     get me() { return me; },
-    async init() { if (!on) return null; try { me = await rpc('gs_me', {}); flush(); } catch (e) {} return me; },
+    get lastErr() { return lastErr; },
+    async init() { if (!on) return null; try { me = await rpc('gs_me', {}); lastErr = null; flush(); } catch (e) { lastErr = e; } return me; },
     startRun: field => (on ? rpc('gs_start_run', { p_field: field }) : Promise.reject(new Error('off'))),
     async submit(args) {
       try { return await rpc('gs_submit_run', args); }
@@ -1703,15 +1704,6 @@ const dailyEl = document.getElementById('daily');
 const STORE = window.GSStore || null;
 let shopTab = 'balls', walletDrawn = -1;
 walletBtn.setAttribute('aria-label', L.shop);
-// Test helper, only in the debug APK (mobile/android/app/src/debug/assets/public/gs-debug.js):
-// a button that adds 10 000 crystals, so every ball, field and boost can be tried quickly.
-if (window.__GS_DEBUG__ === true) {
-  const t = document.createElement('button'); t.type = 'button'; t.id = 'gsDebugGems'; t.className = 'link';
-  t.textContent = (FI ? 'TESTI: ' : 'TEST: ') + '+10 000 ◆';
-  t.style.cssText = 'display:inline-block;margin:0 0 10px 4px;color:#ffb36b;';
-  t.addEventListener('click', () => { addCrystals(10000, t); renderShop(); });
-  shopBal.parentNode.insertAdjacentElement('afterend', t);
-}
 document.getElementById('shopTitle').textContent = L.shop;
 
 function syncWallet() {
@@ -1966,7 +1958,9 @@ document.getElementById('lbCancel').textContent = L.lbCancel;
 document.getElementById('lbEdit').textContent = L.lbEdit;
 lbBtn.setAttribute('aria-label', L.lb);
 let lbField = 'classic', lbScope = 'world', lbReq = 0, lbOpen = false, lbDeleteArmed = false;
-const lbError = e => L.lbErr[e && e.message] || (e && e.status === 0 ? L.lbErr.network : L.lbErr.other);
+// Known server answers get their own text; anything else shows its status code so a screenshot tells what failed.
+const lbError = e => L.lbErr[e && e.message] || (e && e.status === 0 ? L.lbErr.network
+  : L.lbErr.other + (e && e.status ? ' (' + e.status + (e.message && e.message !== 'http_' + e.status ? ': ' + String(e.message).slice(0, 80) : '') + ')' : ''));
 
 function openLb() {
   if (!NET.on) return;
@@ -1988,7 +1982,7 @@ function showForm() {
   setTimeout(() => { try { lbNick.focus({ preventScroll: true }); } catch (e) {} }, 50);
 }
 function renderLb() {
-  if (!NET.me) { showBoard(); lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', L.lbOffline)); return; }
+  if (!NET.me) { showBoard(); lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', NET.lastErr ? lbError(NET.lastErr) : L.lbOffline)); return; }
   if (!NET.me.nickname) return showForm();
   showBoard();
   lbDeleteBtn.textContent = lbDeleteArmed ? L.lbDeleteSure : L.lbDelete;
