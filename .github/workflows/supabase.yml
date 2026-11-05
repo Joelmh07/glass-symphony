@@ -1,0 +1,60 @@
+# Glass Symphony backend (Supabase): leaderboards, players, runs.
+#  - Every PR and push that touches supabase/: run the migrations and their tests on a plain PostgreSQL.
+#  - Push to main: also apply the migrations to the real Supabase project, once these repository
+#    secrets exist: SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, SUPABASE_PROJECT_REF.
+name: Supabase
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', '.github/workflows/supabase.yml']
+  pull_request:
+    paths: ['supabase/**', '.github/workflows/supabase.yml']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run migrations and tests
+        run: |
+          set -o pipefail
+          psql -v ON_ERROR_STOP=1 -q -f supabase/tests/mock_supabase.sql
+          for f in supabase/migrations/*.sql; do echo "migration $f"; psql -v ON_ERROR_STOP=1 -q -f "$f"; done
+          psql -v ON_ERROR_STOP=1 -q -t -f supabase/tests/leaderboards_test.sql | tail -1
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply migrations to Supabase
+        run: |
+          if [ -z "$PROJECT_REF" ] || [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "::notice::Supabase secrets are not set yet, so nothing was deployed. See supabase/README.md."
+            exit 0
+          fi
+          npx --yes supabase@2.121.0 link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          npx --yes supabase@2.121.0 db push --password "$SUPABASE_DB_PASSWORD"

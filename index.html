@@ -153,6 +153,45 @@
   .day.big { grid-column: span 2; }
   @media (prefers-reduced-motion: reduce) { .modal, .modal .panel, #wallet.badge::after, #wallet.bump, .item.pop, .shake { animation: none; } }
 
+  /* ---------- leaderboards ---------- */
+  #lbBtn {
+    top: calc(env(safe-area-inset-top) + 64px); left: calc(env(safe-area-inset-left) + 12px);
+    width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center;
+    border-color: rgba(255,226,122,.45); background: rgba(255,226,122,.08); opacity: 0; pointer-events: none;
+  }
+  #lbBtn.on { opacity: 1; pointer-events: auto; }
+  #lbBtn svg { width: 22px; height: 22px; }
+  #lbBtn.pulse { animation: gs-pulse-gold 1.8s ease-in-out infinite; }
+  @keyframes gs-pulse-gold { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,226,122,.55); } 50% { box-shadow: 0 0 0 10px rgba(255,226,122,0); } }
+  .chips { display: flex; gap: 6px; margin: 0 0 10px; overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips button { flex: none; height: 32px; padding: 0 12px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    border: 1px solid rgba(255,255,255,.18); background: none; color: rgba(255,255,255,.75); font: inherit; font-size: 13px; font-weight: 800; }
+  .chips button[aria-pressed="true"] { border-color: rgba(255,226,122,.7); background: rgba(255,226,122,.12); color: #fff3c4; }
+  .lbList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-height: 120px; }
+  .lbList li { display: grid; grid-template-columns: 40px 26px 1fr auto; align-items: center; gap: 6px; padding: 8px 10px;
+    border-radius: 12px; background: rgba(255,255,255,.04); font-size: 15px; }
+  .lbList li.top1 { background: rgba(255,226,122,.14); } .lbList li.top2, .lbList li.top3 { background: rgba(255,255,255,.08); }
+  .lbList li.me { outline: 1.5px solid rgba(127,232,255,.8); background: rgba(127,232,255,.1); }
+  .lbList li.gap { background: none; padding: 0; min-height: 10px; }
+  .lbList .rk { font-weight: 900; color: rgba(255,255,255,.7); }
+  .lbList .nk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+  .lbList .sc { font-weight: 900; font-variant-numeric: tabular-nums; }
+  .lbList .rep { grid-column: 1 / -1; justify-self: end; }
+  .lbList .info { display: block; padding: 24px 8px; text-align: center; color: rgba(255,255,255,.6); background: none; font-size: 14px; }
+  .lbForm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .lbForm > * { min-width: 0; }
+  .lbForm p.intro { margin: 0 4px 6px; font-size: 14px; color: rgba(255,255,255,.75); line-height: 1.4; }
+  .lbForm label { font-size: 13px; font-weight: 800; color: rgba(255,255,255,.75); margin: 4px 4px 0; }
+  .lbForm input, .lbForm select { height: 46px; border-radius: 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.06);
+    width: 100%; box-sizing: border-box; color: #fff; font: inherit; font-size: 16px; padding: 0 12px; outline: none; }
+  .lbForm select option { color: #000; }
+  .lbForm input:focus, .lbForm select:focus { border-color: #7fe8ff; }
+  .lbForm .cta { margin-top: 8px; }
+  .lbLinks { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+  .lbLinks .link { margin: 0; }
+  .lbLinks .danger { color: #ff8fa3; }
+
   /* ---------- How to play ---------- */
   #help {
     top: calc(env(safe-area-inset-top) + 12px); left: calc(env(safe-area-inset-left) + 12px);
@@ -241,6 +280,30 @@
     <button id="dailyClaim" class="cta" type="button"></button>
   </div>
 </div>
+<button id="lbBtn" class="btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="#ffe27a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg></button>
+<div id="lb" class="modal" role="dialog" aria-modal="true" aria-labelledby="lbTitle" hidden>
+  <div class="panel">
+    <button id="lbClose" class="close" type="button" aria-label="Close">×</button>
+    <h2 id="lbTitle"></h2>
+    <div id="lbBoard">
+      <div class="chips" id="lbFields"></div>
+      <div class="tabs" role="tablist" id="lbTabs"></div>
+      <ol class="lbList" id="lbList"></ol>
+      <div class="lbLinks"><button type="button" class="link" id="lbEdit"></button><button type="button" class="link danger" id="lbDelete"></button></div>
+    </div>
+    <form id="lbForm" class="lbForm" hidden>
+      <p class="intro" id="lbIntro"></p>
+      <label for="lbNick" id="lbNickL"></label>
+      <input id="lbNick" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+      <label for="lbCountry" id="lbCountryL"></label>
+      <select id="lbCountry"></select>
+      <button class="cta" type="submit" id="lbSave"></button>
+      <button type="button" class="link" id="lbCancel"></button>
+      <p class="msg" id="lbMsg" aria-live="polite"></p>
+      <div class="lbLinks" id="lbFormLinks"><span></span><button type="button" class="link danger" id="lbDelete2"></button></div>
+    </form>
+  </div>
+</div>
 <button id="help" class="btn" type="button"><span class="q" aria-hidden="true">?</span><span id="helpLabel"></span></button>
 <div id="howto" role="dialog" aria-modal="true" aria-labelledby="howtoTitle" hidden>
   <div class="panel">
@@ -313,6 +376,81 @@ try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); }
 })();
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
+/* ---------- online: anonymous account, ranked runs, leaderboards (Supabase) ----------
+   The URL and the anon key are public by design: the database only lets callers run the gs_*
+   functions in supabase/migrations, which check every request. Empty = leaderboards are off. */
+const GS_API = window.__GS_API__ || { url: '', key: '' };
+const GS_VERSION = '1.1.0';
+const NET = (function () {
+  const on = !!(GS_API.url && GS_API.key) && /^https?:\/\//.test(GS_API.url);
+  const AUTH_KEY = 'glassSymphony.auth', QUEUE_KEY = 'glassSymphony.queue';
+  let sess = null, me = null, authing = null, queue = [];
+  try { sess = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) {}
+  try { queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch (e) {}
+  if (!Array.isArray(queue)) queue = [];
+  const keepSess = () => { try { if (sess) localStorage.setItem(AUTH_KEY, JSON.stringify(sess)); else localStorage.removeItem(AUTH_KEY); } catch (e) {} };
+  const keepQueue = () => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-10))); } catch (e) {} };
+  async function call(path, body, token) {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const tm = ctl ? setTimeout(() => ctl.abort(), 10000) : 0;
+    let r;
+    try {
+      r = await fetch(GS_API.url + path, { method: 'POST', body: JSON.stringify(body || {}), signal: ctl ? ctl.signal : undefined,
+        headers: { apikey: GS_API.key, Authorization: 'Bearer ' + (token || GS_API.key), 'Content-Type': 'application/json' } });
+    } catch (e) { const n = new Error('network'); n.status = 0; throw n; } finally { clearTimeout(tm); }
+    const text = await r.text(); let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (e) {}
+    if (!r.ok) {
+      const err = new Error(String((data && (data.message || data.msg || data.error_description || data.error)) || 'http_' + r.status));
+      err.status = r.status; throw err;
+    }
+    return data;
+  }
+  function keepTokens(d) { sess = { at: d.access_token, rt: d.refresh_token, exp: Date.now() + (d.expires_in || 3600) * 1000 }; keepSess(); }
+  async function token() {
+    if (sess && sess.at && sess.exp - 60000 > Date.now()) return sess.at;
+    if (!authing) authing = (async () => {
+      try {
+        if (sess && sess.rt) {
+          try { keepTokens(await call('/auth/v1/token?grant_type=refresh_token', { refresh_token: sess.rt })); return; }
+          catch (e) { if (e.status === 0) throw e; } // a refused refresh token: start a new account below
+        }
+        keepTokens(await call('/auth/v1/signup', { data: {} })); // anonymous sign-in: no email
+      } finally { authing = null; }
+    })();
+    await authing;
+    return sess.at;
+  }
+  async function rpc(name, args) {
+    const t = await token();
+    try { return await call('/rest/v1/rpc/' + name, args, t); }
+    catch (e) {
+      if (e.status !== 401) throw e;
+      sess.exp = 0; return call('/rest/v1/rpc/' + name, args, await token()); // expired token: once more
+    }
+  }
+  async function flush() {
+    const list = queue.filter(x => x && x.args && Date.now() - x.t < 3 * 3600e3); queue = []; keepQueue();
+    for (const x of list) { try { await rpc('gs_submit_run', x.args); } catch (e) { if (e.status === 0) queue.push(x); } }
+    keepQueue();
+  }
+  return {
+    on,
+    get me() { return me; },
+    async init() { if (!on) return null; try { me = await rpc('gs_me', {}); flush(); } catch (e) {} return me; },
+    startRun: field => (on ? rpc('gs_start_run', { p_field: field }) : Promise.reject(new Error('off'))),
+    async submit(args) {
+      try { return await rpc('gs_submit_run', args); }
+      catch (e) { if (e.status === 0) { queue.push({ args, t: Date.now() }); keepQueue(); } throw e; }
+    },
+    flush,
+    async setProfile(nick, country) { me = await rpc('gs_set_profile', { p_nickname: nick, p_country: country }); return me; },
+    board: (field, scope, country) => rpc('gs_leaderboard', { p_field: field, p_scope: scope, p_country: country || null, p_limit: 50 }),
+    report: nick => rpc('gs_report', { p_nickname: nick }),
+    async deleteMe() { await rpc('gs_delete_me', {}); sess = null; me = null; queue = []; keepSess(); keepQueue(); }
+  };
+})();
+
 /* ---------- language ---------- */
 const LANG = ((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase();
 const FI = LANG.indexOf('fi') === 0;
@@ -345,7 +483,7 @@ const L = FI ? {
     ice: ['Jääpallo', 'Kylmä kosketus: kaikki lasi putoaa 15 % hitaammin.'],
     star: ['Tähtipallo', 'Täydellisen osuman alue on puolet suurempi: enemmän kristalleja.'],
     fire: ['Tulipallo', 'Räjähtää: rikkoo myös viereiset lasit (ei mustaa).'],
-    crown: ['Kuningaspallo', 'Jokainen rikottu lasi antaa 30 % enemmän pisteitä.']
+    crown: ['Kuningaspallo', 'Jokainen rikottu lasi antaa 30 % enemmän pisteitä (bonus ei lasketa tulostaululle).']
   },
   fields: {
     classic: ['Klassinen', 'Alkuperäinen sinfonia. Kolme elämää.'],
@@ -360,9 +498,26 @@ const L = FI ? {
     gems2: ['Kristallitupla', 'Jokainen kerätty kristalli lasketaan kahdesti.']
   },
   tabFields: 'Kentät', tabBoosts: 'Tehosteet', have: n => 'Sinulla ' + n, armOn: '✓ Päällä', armOff: 'Pois',
-  boostHint: 'Päällä olevat tehosteet käytetään seuraavassa pelissä (yksi kutakin).',
+  boostHint: 'Päällä olevat tehosteet käytetään seuraavassa pelissä (yksi kutakin). Tehosteilla pelattu kierros ei mene tulostaululle.',
   fieldLbl: 'Kenttä', nextRun: 'Seuraavaan peliin', shieldUp: 'KILPI!', timeUp: 'AIKA LOPPUI',
   sec: n => n + ' s', timeLeft: 'Aika', wind: 'TUULI', ptsX: k => 'pisteet ×' + String(k).replace('.', ','),
+  lb: 'Tulostaulu', lbWorld: 'Maailma', lbWeek: 'Viikko', lbCountryTab: 'Oma maa', lbLoading: 'Ladataan…',
+  lbEmpty: 'Ei vielä tuloksia. Ole ensimmäinen!', lbOffline: 'Ei yhteyttä. Yritä hetken päästä uudelleen.',
+  lbIntro: 'Valitse nimimerkki, niin tuloksesi näkyvät maailman ja oman maasi tulostaululla. Sähköpostia ei tarvita.',
+  lbNick: 'Nimimerkki', lbCountry: 'Maa', lbPick: 'Valitse maa', lbSave: 'Tallenna', lbCancel: 'Peruuta',
+  lbEdit: 'Muokkaa nimimerkkiä', lbDelete: 'Poista tilini', lbDeleteSure: 'Vahvista: poista tili ja tulokset',
+  lbDeleted: 'Tili ja tulokset poistettu.', lbReport: 'Ilmianna sopimaton nimi', lbReported: 'Kiitos, ilmoitus vastaanotettu.',
+  lbErr: {
+    nickname_taken: 'Tämä nimimerkki on jo käytössä.', nickname_length: 'Nimimerkissä pitää olla 3–16 merkkiä.',
+    nickname_chars: 'Käytä vain kirjaimia, numeroita, välilyöntiä ja merkkejä _ . -', nickname_blocked: 'Valitse toinen nimimerkki.',
+    nickname_too_soon: 'Nimimerkin voi vaihtaa kerran viikossa.', country_too_soon: 'Maan voi vaihtaa kerran 30 päivässä.',
+    country_invalid: 'Valitse maa listasta.', banned: 'Tämä tili on estetty tulostaululta.', network: 'Ei yhteyttä. Yritä hetken päästä uudelleen.',
+    other: 'Jokin meni pieleen. Yritä uudelleen.'
+  },
+  rankLine: (w, c, cn, wk) => 'Maailma #' + w + (c ? '  ·  ' + cn + ' #' + c : '') + '  ·  Viikko #' + wk,
+  rankNick: 'Lisää nimimerkki, niin tulos näkyy tulostaululla', rankWait: 'Lähetetään tulostaululle…',
+  rankReview: 'Tulos tarkistetaan ennen tulostaulua', rankRejected: 'Tulosta ei hyväksytty tulostaululle',
+  rankBoost: 'Tehosteilla pelattu kierros ei mene tulostaululle', rankOffline: 'Ei yhteyttä: tulos lähetetään myöhemmin',
   themes: {
     symphony: ['Sinfonia', 'Alkuperäinen yön sinivioletti.'],
     neon: ['Neon Cyberpunk', 'Pinkki ja syaani hehku.'],
@@ -405,7 +560,7 @@ const L = FI ? {
     ice: ['Frost ball', 'A cold touch: all glass falls 15% slower.'],
     star: ['Star ball', 'A 50% bigger perfect-hit zone: more crystals.'],
     fire: ['Fireball', 'Explodes: also breaks the glass next to it (never black).'],
-    crown: ['Crown ball', 'Every break scores 30% more points.']
+    crown: ['Crown ball', 'Every break scores 30% more points (the bonus does not count on the leaderboard).']
   },
   fields: {
     classic: ['Classic', 'The original symphony. Three lives.'],
@@ -420,9 +575,26 @@ const L = FI ? {
     gems2: ['Double crystals', 'Every crystal you collect counts twice.']
   },
   tabFields: 'Fields', tabBoosts: 'Boosts', have: n => 'You have ' + n, armOn: '✓ On', armOff: 'Off',
-  boostHint: 'Boosts that are on are used in your next run (one of each).',
+  boostHint: 'Boosts that are on are used in your next run (one of each). Runs with boosts do not count for the leaderboard.',
   fieldLbl: 'Field', nextRun: 'Next run', shieldUp: 'SHIELD!', timeUp: 'TIME UP',
   sec: n => n + 's', timeLeft: 'Time', wind: 'WIND', ptsX: k => 'points ×' + k,
+  lb: 'Leaderboard', lbWorld: 'World', lbWeek: 'This week', lbCountryTab: 'My country', lbLoading: 'Loading…',
+  lbEmpty: 'No scores yet. Be the first!', lbOffline: 'No connection. Try again in a moment.',
+  lbIntro: 'Pick a nickname and your scores show on the world and country leaderboards. No email needed.',
+  lbNick: 'Nickname', lbCountry: 'Country', lbPick: 'Choose a country', lbSave: 'Save', lbCancel: 'Cancel',
+  lbEdit: 'Edit nickname', lbDelete: 'Delete my account', lbDeleteSure: 'Confirm: delete account and scores',
+  lbDeleted: 'Account and scores deleted.', lbReport: 'Report this name', lbReported: 'Thanks, we got your report.',
+  lbErr: {
+    nickname_taken: 'That nickname is taken.', nickname_length: 'A nickname has 3 to 16 characters.',
+    nickname_chars: 'Use letters, digits, spaces and _ . - only.', nickname_blocked: 'Please pick another nickname.',
+    nickname_too_soon: 'You can change your nickname once a week.', country_too_soon: 'You can change your country once every 30 days.',
+    country_invalid: 'Pick a country from the list.', banned: 'This account is blocked from the leaderboards.', network: 'No connection. Try again in a moment.',
+    other: 'Something went wrong. Please try again.'
+  },
+  rankLine: (w, c, cn, wk) => 'World #' + w + (c ? '  ·  ' + cn + ' #' + c : '') + '  ·  Week #' + wk,
+  rankNick: 'Add a nickname to put this score on the leaderboard', rankWait: 'Sending to the leaderboard…',
+  rankReview: 'Your score is being checked before it is listed', rankRejected: 'This score was not accepted for the leaderboard',
+  rankBoost: 'Runs with boosts do not count for the leaderboard', rankOffline: 'No connection: the score is sent later',
   themes: {
     symphony: ['Symphony', 'The original midnight violet.'],
     neon: ['Neon Cyberpunk', 'Hot pink and cyan glow.'],
@@ -503,7 +675,7 @@ const DAILY = [20, 30, 40, 50, 60, 80, 150];
 const FREE_GEMS = 25, FREE_GEMS_PER_DAY = 5;
 // Real-money products. Ids must match the products created in Play Console / App Store Connect.
 const IAP = [
-  { id: 'gs_noads', kind: 'noads', price: '2,99 €' },
+  { id: 'gs_noads', kind: 'noads', price: '1,99 €' },
   { id: 'gs_gems_300', kind: 'gems', amount: 300, price: '0,99 €' },
   { id: 'gs_gems_1000', kind: 'gems', amount: 1000, price: '2,99 €' },
   { id: 'gs_gems_3000', kind: 'gems', amount: 3000, price: '6,99 €' }
@@ -722,6 +894,9 @@ let runGems = 0, runBonus = 0, gemPop = 0, gemStep = 0, walletShown = save.cryst
 // the field and boosts of the current run (fixed when it starts, so the shop cannot change them mid-run)
 let RF = FIELD, rfId = fieldId, maxLives = 3, rushT = 0, shieldOn = false, gemMul = 1, usedBoosts = [];
 let wind = 0, gustT = 0, gustDir = 1, nextGust = 4, timeUp = false;
+// leaderboard: ranked runs are started on the server; rankScore leaves out the Crown ball's bonus
+let runId = null, runReq = null, runStartedAt = 0, rankScore = 0, runSummary = [], runSampleT = 0;
+let pendingSubmit = null, lastRank = null, submitTok = 0;
 const gems = []; // crystal pickups
 const orb = { x: 0, y: 0, vx: 0, vy: 0, a: 0, tx: 0, ty: 0, on: false };
 
@@ -1008,19 +1183,20 @@ function shatterFx(o, wx, wy, dx, dy, power, freq, opts) {
 function scoreBreak(o, p, x, y) {
   combo++; comboT = COMBO_WIN; maxCombo = Math.max(maxCombo, combo); broken++;
   const mult = Math.min(8, 1 + Math.floor(combo / 5)) * (feverT > 0 ? 2 : 1);
-  const pk = RF.ptsK * BALL.ptsK;
-  let pts = Math.round(BASE_PTS[o.type] * mult * pk);
+  // ranked points use the field's multiplier only: what can be bought (the Crown ball) never counts
+  let rp = Math.round(BASE_PTS[o.type] * mult * RF.ptsK);
   if (p) {
     p.hits++;
     if (p.hits >= 2) {
-      pts += Math.round((p.hits - 1) * 15 * mult * pk);
+      rp += Math.round((p.hits - 1) * 15 * mult * RF.ptsK);
       if (p.hits >= 3) {
         floatText(L.chain + ' ×' + p.hits, x, y - R * 1.1, clamp(S * 0.07, 24, 46), 'hsl(' + ((p.hits * 40) % 360) + ',100%,75%)', 1.0, -S * 0.08);
         hitStop = Math.max(hitStop, 0.045); shake(0.12);
       }
     }
   }
-  score += pts; scorePop = 1;
+  const pts = Math.round(rp * BALL.ptsK);
+  score += pts; rankScore += rp; scorePop = 1;
   // milestone reward: an extra life every 5 000 points keeps long runs alive
   while (score >= nextLifeAt) {
     nextLifeAt += 5000;
@@ -1088,7 +1264,7 @@ function hitObject(o, px, py, dx, dy, p) {
     }
     o.vy *= 0.3; o.y -= o.r * 0.25; o.vx += dx * S * 0.15; o.vr += rand(-3, 3);
     combo++; comboT = COMBO_WIN; maxCombo = Math.max(maxCombo, combo);
-    score += 5; scorePop = 0.5;
+    score += 5; rankScore += 5; scorePop = 0.5;
     burst(px, py, 8, o.hue, 0.6, 85); addFlash(px, py, o.r * 1.6, 0.12);
     SFX.crack(noteFreq(combo - 1), pan); shake(0.1); buzz(10);
     return;
@@ -1251,6 +1427,12 @@ function startGame() {
   }
   save.armed = save.armed.filter(id => save.boosts[id] > 0); persist();
   lives = maxLives = startLives;
+  // a ranked run (no boosts) gets its id from the server; if that fails the run just is not ranked
+  submitTok++; runId = null; runReq = null; pendingSubmit = null; lastRank = null;
+  rankScore = 0; runSummary = []; runSampleT = 0; runStartedAt = performance.now();
+  if (NET.on && !usedBoosts.length) {
+    const req = runReq = NET.startRun(rfId).then(id => { if (runReq === req) runId = id; }, () => {});
+  }
   newBest = false; bestShown = false; lastLifeShown = lives <= 1; prevBest = bestFor(rfId); nextLifeAt = 5000;
   revived = false; hideRevive();
   runGems = 0; runBonus = 0; gems.length = 0; gemStep = 0;
@@ -1287,6 +1469,7 @@ function finishGame() {
   shareBtn.classList.add('on');
   setHelpVisible(true);
   offerRevive();
+  prepareSubmit();
   if (dailyReady()) timers.push({ t: 1.4, fn: () => { if (state === 'over' && reviveBtn.hidden) openDaily(); } });
 }
 /* ---------- store-app ad hooks ----------
@@ -1298,7 +1481,28 @@ function offerRevive() {
   reviveBtn.disabled = false; reviveBtn.hidden = false;
 }
 function hideRevive() { reviveBtn.hidden = true; }
+// The score goes to the server when the run is really over: right away, or once the player
+// passes on the "continue" offer (starting again, leaving the app, or 12 s).
+function prepareSubmit() {
+  if (!NET.on) return;
+  if (!runId) { lastRank = usedBoosts.length ? { status: 'boost' } : null; return; }
+  const ps = pendingSubmit = { p_run: runId, p_score: rankScore, p_duration_ms: Math.round(performance.now() - runStartedAt),
+    p_breaks: broken, p_max_combo: maxCombo, p_version: GS_VERSION + (ADS ? '-app' : '-web'), p_summary: { s: runSummary } };
+  if (reviveBtn.hidden) sendSubmit(); else setTimeout(() => { if (pendingSubmit === ps) sendSubmit(); }, 12000);
+}
+function sendSubmit() {
+  const ps = pendingSubmit; if (!ps) return;
+  pendingSubmit = null; runId = null;
+  const tok = submitTok; lastRank = { status: 'wait' };
+  NET.submit(ps).then(res => {
+    if (tok !== submitTok) return;
+    lastRank = res || null;
+    if (res && res.status === 'accepted' && NET.me && !NET.me.nickname) lbBtn.classList.add('pulse');
+  },
+    e => { if (tok === submitTok) lastRank = e && e.status === 0 ? { status: 'offline' } : null; });
+}
 function revive() {
+  pendingSubmit = null; // the run goes on: it is sent when it really ends
   // undo what finishGame recorded; the run is counted again when it really ends
   save.games = Math.max(0, save.games - 1); save.total = Math.max(0, save.total - broken);
   save.crystals = Math.max(0, save.crystals - runBonus); runBonus = 0;
@@ -1314,7 +1518,7 @@ function revive() {
   showBanner(L.revived, '', '#ffe27a', 1.4);
 }
 function restart() {
-  goldFlash = 0; hideRevive();
+  goldFlash = 0; hideRevive(); sendSubmit();
   // an interstitial may play first; the ad layer calls startGame when it closes
   if (ADS && !save.noAds && ADS.beforeRestart(startGame)) return;
   startGame();
@@ -1366,6 +1570,7 @@ function onDown(e) {
     segHit(p, p.x, p.y, p.x, p.y);
     if (startPane && !startPane.dead) hitObject(startPane, startPane.x + (p.x - startPane.x) * 0.2, startPane.y + (p.y - startPane.y) * 0.2, 0, 0, p);
   } else if (state === 'over') {
+    if (rankLineY && Math.abs(p.y - rankLineY) < 22 && lastRank && lastRank.status === 'accepted' && NET.me && !NET.me.nickname) { pointers.delete(e.pointerId); openLb(); return; }
     if (stateT > 0.9) restart();
   } else if (state === 'play') {
     segHit(p, p.x, p.y, p.x, p.y);
@@ -1398,6 +1603,7 @@ window.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('touchmove', e => { if (!(e.target.closest && e.target.closest('.panel'))) e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault());
 window.addEventListener('keydown', e => {
+  if (lbOpen) { if (e.code === 'Escape') closeLb(); return; }
   if (helpOpen) { if (e.code === 'Escape') closeHelp(); return; }
   if (!shopEl.hidden || !dailyEl.hidden) { if (e.code === 'Escape') { closeShop(); closeDaily(); } return; }
   if (e.code === 'KeyM') toggleMute();
@@ -1453,8 +1659,9 @@ helpBtn.setAttribute('aria-label', L.help);
 if (!save.seenHelp && !save.games) helpBtn.classList.add('pulse');
 function setHelpVisible(v) {
   helpBtn.classList.toggle('on', v); walletBtn.classList.toggle('on', v);
+  lbBtn.classList.toggle('on', v && NET.on);
   if (!v && helpOpen) closeHelp();
-  if (!v) { closeShop(); closeDaily(); }
+  if (!v) { closeShop(); closeDaily(); closeLb(); }
 }
 function openHelp() {
   helpOpen = true; howto.hidden = false; pointers.clear();
@@ -1729,6 +1936,128 @@ walletBtn.addEventListener('click', () => { SFX.init(); if (dailyReady()) openDa
 document.getElementById('shopClose').addEventListener('click', closeShop);
 shopEl.addEventListener('pointerdown', e => { if (e.target === shopEl) closeShop(); });
 
+/* ---------- leaderboards: nickname, country, World / country / week ---------- */
+const lbBtn = document.getElementById('lbBtn'), lbEl = document.getElementById('lb');
+const lbList = document.getElementById('lbList'), lbForm = document.getElementById('lbForm'), lbBoard = document.getElementById('lbBoard');
+const lbNick = document.getElementById('lbNick'), lbCountry = document.getElementById('lbCountry'), lbMsg = document.getElementById('lbMsg');
+const lbDeleteBtn = document.getElementById('lbDelete'), lbDeleteBtn2 = document.getElementById('lbDelete2');
+const COUNTRIES = ('AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW').split(' ');
+let regionNames = null;
+try { regionNames = new Intl.DisplayNames([FI ? 'fi' : 'en'], { type: 'region' }); } catch (e) {}
+function countryName(cc) { try { return (regionNames && regionNames.of(cc)) || cc; } catch (e) { return cc; } }
+const flag = cc => (/^[A-Z]{2}$/.test(cc || '') ? String.fromCodePoint(127397 + cc.charCodeAt(0), 127397 + cc.charCodeAt(1)) : '');
+function guessCountry() { // from the phone's region setting: fi-FI -> FI; a bare "fi" -> FI
+  const m = LANG.match(/^[a-z]{2,3}[-_]([a-z]{2})\b/i);
+  if (m && COUNTRIES.indexOf(m[1].toUpperCase()) >= 0) return m[1].toUpperCase();
+  return ({ fi: 'FI', sv: 'SE', nb: 'NO', no: 'NO', da: 'DK', et: 'EE', de: 'DE', fr: 'FR', es: 'ES', it: 'IT', pl: 'PL', nl: 'NL', ja: 'JP' })[LANG.slice(0, 2)] || '';
+}
+(function fillCountries() {
+  const o0 = el('option', '', L.lbPick); o0.value = ''; lbCountry.appendChild(o0);
+  COUNTRIES.map(cc => [cc, countryName(cc)]).sort((a, b) => a[1].localeCompare(b[1], FI ? 'fi' : 'en'))
+    .forEach(([cc, name]) => { const o = el('option', '', flag(cc) + ' ' + name); o.value = cc; lbCountry.appendChild(o); });
+})();
+document.getElementById('lbTitle').textContent = L.lb;
+document.getElementById('lbIntro').textContent = L.lbIntro;
+document.getElementById('lbNickL').textContent = L.lbNick;
+document.getElementById('lbCountryL').textContent = L.lbCountry;
+document.getElementById('lbSave').textContent = L.lbSave;
+document.getElementById('lbCancel').textContent = L.lbCancel;
+document.getElementById('lbEdit').textContent = L.lbEdit;
+lbBtn.setAttribute('aria-label', L.lb);
+let lbField = 'classic', lbScope = 'world', lbReq = 0, lbOpen = false, lbDeleteArmed = false;
+const lbError = e => L.lbErr[e && e.message] || (e && e.status === 0 ? L.lbErr.network : L.lbErr.other);
+
+function openLb() {
+  if (!NET.on) return;
+  closeShop(); closeDaily(); closeHelp();
+  lbOpen = true; lbEl.hidden = false; pointers.clear();
+  lbField = state === 'over' ? rfId : fieldId; lbScope = 'world'; lbDeleteArmed = false;
+  lbBtn.classList.remove('pulse');
+  if (NET.me) renderLb(); else { showBoard(); lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', L.lbLoading)); NET.init().then(() => { if (lbOpen) renderLb(); }); }
+}
+function closeLb() { if (lbOpen) { lbOpen = false; lbEl.hidden = true; } }
+function showBoard() { lbForm.hidden = true; lbBoard.hidden = false; }
+function showForm() {
+  lbBoard.hidden = true; lbForm.hidden = false; lbMsg.textContent = '';
+  const me = NET.me || {};
+  lbNick.value = me.nickname || ''; lbCountry.value = me.country || guessCountry();
+  document.getElementById('lbCancel').hidden = !me.nickname;
+  lbDeleteArmed = false; lbDeleteBtn2.textContent = L.lbDelete; lbDeleteBtn2.disabled = false;
+  document.getElementById('lbFormLinks').hidden = !NET.me; // nothing stored yet without an account
+  setTimeout(() => { try { lbNick.focus({ preventScroll: true }); } catch (e) {} }, 50);
+}
+function renderLb() {
+  if (!NET.me) { showBoard(); lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', L.lbOffline)); return; }
+  if (!NET.me.nickname) return showForm();
+  showBoard();
+  lbDeleteBtn.textContent = lbDeleteArmed ? L.lbDeleteSure : L.lbDelete;
+  const fl = document.getElementById('lbFields'); fl.textContent = '';
+  for (const id of Object.keys(FIELDS)) {
+    const b = el('button', '', L.fields[id][0]); b.type = 'button'; b.setAttribute('aria-pressed', String(id === lbField));
+    b.addEventListener('click', () => { lbField = id; renderLb(); }); fl.appendChild(b);
+  }
+  const tabs = document.getElementById('lbTabs'); tabs.textContent = '';
+  const cc = NET.me.country;
+  for (const [id, name] of [['world', L.lbWorld], ['country', cc ? flag(cc) + ' ' + countryName(cc) : L.lbCountryTab], ['week', L.lbWeek]]) {
+    if (id === 'country' && !cc) continue;
+    const b = el('button', '', name); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(id === lbScope));
+    b.addEventListener('click', () => { lbScope = id; renderLb(); }); tabs.appendChild(b);
+  }
+  lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', L.lbLoading));
+  const req = ++lbReq;
+  NET.board(lbField, lbScope).then(rows => {
+    if (req !== lbReq) return;
+    lbList.innerHTML = '';
+    if (!rows || !rows.length) { lbList.appendChild(el('li', 'info', L.lbEmpty)); return; }
+    let prev = 0;
+    for (const r of rows) {
+      if (r.rank > prev + 1 && prev) lbList.appendChild(el('li', 'gap'));
+      prev = r.rank;
+      const li = el('li', (r.me ? 'me ' : '') + (r.rank <= 3 ? 'top' + r.rank : ''));
+      li.appendChild(el('span', 'rk', '#' + r.rank)); li.appendChild(el('span', '', flag(r.country)));
+      li.appendChild(el('span', 'nk', r.nickname)); li.appendChild(el('span', 'sc', String(r.score)));
+      if (!r.me) li.addEventListener('click', () => { // tap a name: offer to report it
+        if (li.querySelector('.rep')) return;
+        const rb = el('button', 'link rep', L.lbReport); rb.type = 'button';
+        rb.addEventListener('click', ev => { ev.stopPropagation(); rb.disabled = true; NET.report(r.nickname).then(() => { rb.textContent = L.lbReported; }, () => { rb.disabled = false; }); });
+        li.appendChild(rb);
+      });
+      lbList.appendChild(li);
+    }
+  }, e => { if (req === lbReq) { lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', lbError(e))); } });
+}
+lbForm.addEventListener('submit', e => {
+  e.preventDefault();
+  const nick = lbNick.value.trim().replace(/\s+/g, ' '), cc = lbCountry.value;
+  if (!cc) { lbMsg.textContent = L.lbErr.country_invalid; return; }
+  const me = NET.me || {}, saveBtn = document.getElementById('lbSave');
+  saveBtn.disabled = true; lbMsg.textContent = '';
+  NET.setProfile(nick === me.nickname ? null : nick, cc === me.country ? null : cc)
+    .then(() => { SFX.power(); renderLb(); }, err => { lbMsg.textContent = lbError(err); SFX.hurt(0); })
+    .then(() => { saveBtn.disabled = false; });
+});
+document.getElementById('lbCancel').addEventListener('click', () => renderLb());
+document.getElementById('lbEdit').addEventListener('click', showForm);
+// Two-step delete, offered on the board and (for players without a nickname) on the form.
+function deleteAccount(btn, show) {
+  if (!lbDeleteArmed) { lbDeleteArmed = true; btn.textContent = L.lbDeleteSure; return; }
+  btn.disabled = true;
+  NET.deleteMe().then(() => { lbDeleteArmed = false; lastRank = null; btn.textContent = L.lbDelete; show(L.lbDeleted); },
+    err => show(lbError(err))).then(() => { btn.disabled = false; });
+}
+lbDeleteBtn.addEventListener('click', () => deleteAccount(lbDeleteBtn, t => { lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', t)); }));
+lbDeleteBtn2.addEventListener('click', () => deleteAccount(lbDeleteBtn2, t => {
+  showBoard(); lbList.innerHTML = ''; lbList.appendChild(el('li', 'info', t));
+  document.getElementById('lbFields').textContent = ''; document.getElementById('lbTabs').textContent = '';
+}));
+lbBtn.addEventListener('click', () => { SFX.init(); openLb(); });
+document.getElementById('lbClose').addEventListener('click', closeLb);
+lbEl.addEventListener('pointerdown', e => { if (e.target === lbEl) closeLb(); });
+if (NET.on) {
+  setTimeout(() => NET.init(), 1200);
+  window.addEventListener('online', () => NET.flush());
+}
+
 /* ---------- daily reward: a 7-day streak that resets if you miss a day ---------- */
 function dailyReady() { return save.games > 0 && save.dailyLast !== dayKey(); }
 function nextStreak() { return save.dailyLast === yesterdayKey() ? (save.dailyStreak % 7) + 1 : 1; }
@@ -1772,7 +2101,7 @@ document.addEventListener('pointerdown', e => {
   if (e.target === cvs) { e.preventDefault(); e.stopPropagation(); } // this tap only resumes
 }, true);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { if (state === 'play' || state === 'dying') paused = true; pointers.clear(); SFX.suspend(); }
+  if (document.hidden) { if (state === 'play' || state === 'dying') paused = true; pointers.clear(); SFX.suspend(); sendSubmit(); }
 });
 window.addEventListener('blur', () => { if (state === 'play') paused = true; pointers.clear(); });
 window.addEventListener('resize', resize);
@@ -1808,6 +2137,8 @@ function update(rdt) {
     if (feverT > 0) feverT -= dt;
     if (slowT > 0) slowT -= dt;
     if (RF.timed) { rushT -= dt; if (rushT <= 0) { rushT = 0; timeUp = true; endGame(); } }
+    runSampleT += dt;
+    if (runSampleT >= 5 && runSummary.length < 150) { runSampleT -= 5; runSummary.push([rankScore, broken, combo]); }
     if (RF.wind) { // storm: a steady sway plus strong gusts you can see coming
       nextGust -= dt;
       if (nextGust <= 0) {
@@ -2225,6 +2556,18 @@ function nextRunText() {
   return L.fields[fieldId][0] + (on.length ? '  ·  ' + on.join(', ') : '');
 }
 
+// the leaderboard line on the game-over screen
+let rankLineY = 0; // where the leaderboard line was drawn: tapping "add a nickname" opens the form
+function rankText() {
+  const r = lastRank;
+  if (!r) return null;
+  if (r.status === 'accepted') {
+    if (NET.me && !NET.me.nickname) return [L.rankNick + '  ›', '#ffe27a'];
+    return [L.rankLine(r.world, r.country, NET.me && NET.me.country ? countryName(NET.me.country) : '', r.week), '#ffe27a'];
+  }
+  const m = { wait: L.rankWait, review: L.rankReview, rejected: L.rankRejected, boost: L.rankBoost, offline: L.rankOffline }[r.status];
+  return m ? [m, 'rgba(255,255,255,0.6)'] : null;
+}
 function drawOver(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const a = clamp(stateT / 0.4, 0, 1);
@@ -2251,6 +2594,9 @@ function drawOver(now) {
     y += u * 0.62;
     txt('◆ +' + (runGems + runBonus) + (runBonus ? '   (' + L.bonus + ' +' + runBonus + ')' : ''), W / 2, y, s2 * 0.85, '#7fe8ff', { w: 800 });
   }
+  const rl = rankText();
+  rankLineY = 0;
+  if (rl) { y += u * 0.62; txt(rl[0], W / 2, y, s2 * 0.8, rl[1], { w: 800 }); rankLineY = y; }
   // rank + progress to next rank (the long-term hook)
   y += u * 0.95;
   const tb = topBest(), ri = rankIndex(tb);
@@ -2324,7 +2670,7 @@ if (TEST) {
     get field() { return rfId; }, get rushT() { return rushT; }, get shield() { return shieldOn; },
     get maxLives() { return maxLives; }, get wind() { return wind; }, get boosts() { return save.boosts; },
     get armed() { return save.armed; }, get paused() { return paused; }, set paused(v) { paused = v; },
-    bestFor
+    bestFor, get lastRank() { return lastRank; }, get rankScore() { return rankScore; }, get runId() { return runId; }, net: NET
   };
 }
 })();
